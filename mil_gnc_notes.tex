@@ -48,10 +48,12 @@
 \definecolor{stateblue}{rgb}{0, 0, 0.75}
 \definecolor{darkgreen}{rgb}{0, 0.5, 0}
 \definecolor{orange}{RGB}{180, 60, 0}
+\definecolor{purple}{RGB}{200, 0, 200}
 \def\green#1{\textcolor{darkgreen}{#1}}
 \def\red#1{\textcolor{red}{#1}}
 \def\blue#1{\textcolor{stateblue}{#1}}
 \def\orange#1{\textcolor{orange}{#1}}
+\def\purple#1{\textcolor{purple}{#1}}
 \def\black#1{\textcolor{black}{#1}}
 
 % Coordinate system notation
@@ -529,18 +531,18 @@ In this sleek form we see very clearly the following:
 
 We now have math describing the vehicle, but what about the sensors? The reasonable way to describe a sensor is as an algebraic function of the state and a random variable called noise:
 $$
-\orange{z} = h(\blue{x}, \red{\epsilon})
+\purple{z} = h(\blue{x}, \red{\epsilon})
 $$
 
-where $\orange{z}$ is the sensor measurement, $h$ is the sensor model, $\blue{x}$ is the state, and $\red{\epsilon}$ is noise. For example, a \href{http://www.siliconsensing.com/technology/mems-gyroscopes/}{gyroscope} is a device that ideally measures the angular velocity of the thing it is attached to relative to a locally inertial frame, but expressed along the gyro axes.
+where $\purple{z}$ is the sensor measurement, $h$ is the sensor model, $\blue{x}$ is the state, and $\red{\epsilon}$ is noise. For example, a \href{http://www.siliconsensing.com/technology/mems-gyroscopes/}{gyroscope} is a device that ideally measures the angular velocity of the thing it is attached to relative to a locally inertial frame, but expressed along the gyro axes.
 \begin{align*}
-\orange{z_{\text{gyro}}} &= \orange{\cs{\text{gyro}}{R}_N\cs{N}{\omega}_C} + \red{\epsilon_{\text{gyro}}}\\
+\purple{z_{\text{gyro}}} &= \orange{\cs{\text{gyro}}{R}_N\cs{N}{\omega}_C} + \red{\epsilon_{\text{gyro}}}\\
 &= \cs{\text{gyro}}{R}_C(\blue{R}^{\tr}\green{\cs{N}{R^{\black{\tr}}}_E\cs{N}{\omega}_E} + \blue{\omega}) + \red{\epsilon_{\text{gyro}}}
 \end{align*}
 
 where $\cs{\text{gyro}}{R}_C$ is a constant rotation matrix relating $C$-coordinates to the mounting orientation of the gyro. The above makes the assumption of additive noise which is very common due to the input-superimposing nature of most sensors. In fact, the commonality of additive noise is also the reason why most sensor noise is Gaussian distributed -- sums of random variables converge to a Gaussian distribution (essentially the Central Limit Theorem). Thus we should probably assume $\red{\epsilon_{\text{gyro}}} \dist \mathcal{N}(\zero, \sigma_{\text{gyro}})$. But why zero mean? Because we can encode the mean as a ``bias'' $\red{b_{\text{gyro}}}$ which is the value the gyro reads when it is actually sitting still. That is,
 $$
-\orange{z_{\text{gyro}}} = \cs{\text{gyro}}{R}_C(\blue{R}^{\tr}\green{\cs{N}{R^{\black{\tr}}}_E\cs{N}{\omega}_E} + \blue{\omega}) + \red{b_{\text{gyro}}} + \red{\epsilon_{\text{gyro}}}
+\purple{z_{\text{gyro}}} = \cs{\text{gyro}}{R}_C(\blue{R}^{\tr}\green{\cs{N}{R^{\black{\tr}}}_E\cs{N}{\omega}_E} + \blue{\omega}) + \red{b_{\text{gyro}}} + \red{\epsilon_{\text{gyro}}}
 $$
 
 still with $\red{\epsilon_{\text{gyro}}} \dist \mathcal{N}(\zero, \sigma_{\text{gyro}})$. The above is called a Gaussian or ``white-noise'' model. If we let the bias vary with time through some random walk (as opposed to remaining constant),
@@ -557,31 +559,31 @@ This is called an Ornstein-Uhlenbeck model, and it may be a breach of my Sylphas
 
 If we assume hydrostatic pressure, a \href{https://en.wikipedia.org/wiki/Pressure_sensor#Pressure-sensing_technology}{pressure sensor's} measurement is proportional to the $E$-depth.
 $$
-\orange{z_{\text{pres}}} = \rho \cs{E}{g} \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
+\purple{z_{\text{pres}}} = \rho \cs{E}{g} \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
 $$
 
 where $\cs{E}{r}_{\text{surf}}$ is a vector to the surface of the water above the sub in $E$-coordinates (approximately zero if $E$ is ENU) and $\cs{C}{r}_{\text{pres}}$ is the position of the pressure sensor in $C$-coordinates.\\
 
 A \href{https://en.wikipedia.org/wiki/Hall_effect_sensor}{magnetometer} measures the local magnetic field decomposed along the magnetometer's axes. Magnetic parts attached to the robot can distort the surrounding field in an affine way.
 $$
-\orange{z_{\text{mag}}} = A_{\text{mag}}\cs{\text{mag}}{R}_C \blue{R}^{\tr} \cs{E}{\Phi}(\blue{p}) + b_{\text{mag}} + \red{\epsilon_{\text{mag}}}
+\purple{z_{\text{mag}}} = A_{\text{mag}}\cs{\text{mag}}{R}_C \blue{R}^{\tr} \cs{E}{\Phi}(\blue{p}) + b_{\text{mag}} + \red{\epsilon_{\text{mag}}}
 $$
 
 where $\cs{E}{\Phi}(\blue{p})$ is a function that takes the robot's position on Earth and returns the magnetic field vector at that location, $A_{\text{mag}}$ is a symmetric matrix called the soft-iron effect and $b_{\text{mag}}$ is a vector called the hard-iron effect, both of which can be determined by \href{https://www.vectornav.com/support/library/magnetometer}{hard-soft calibration}.\\
 
 A \href{http://www.teledynemarine.com/explorer-doppler-velocity-log?ProductLineID=34}{doppler velocity log} (DVL) uses the doppler shift to measure its speed along the direction $\zeta_{\text{dvl}}$ of its acoustic pulse, relative to the object the pulse reflects off (ideally the Earth). Most DVLs come with 4 beam transmitters, but each beam is really a sensor on its own with the following model,
 $$
-\orange{z_{dvl}} = \cs{\text{dvl}}{R}_C (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{dvl}}) \cdot \cs{\text{dvl}}{\zeta}_{\text{beam}} + \red{\epsilon_{\text{dvl}}}
+\purple{z_{dvl}} = \cs{\text{dvl}}{R}_C (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{dvl}}) \cdot \cs{\text{dvl}}{\zeta}_{\text{beam}} + \red{\epsilon_{\text{dvl}}}
 $$
 
 A really nice GPS model would treat each satellite as providing its own state measurements (see: \href{https://sylphase.com/}{Sylphase}) so that Navigation can tightly-couple every observable, but we won't get into that here. For now, we can just view GPS as a noisy but direct measurement of position.
 $$
-\orange{z_{\text{gps}}} = \blue{p} + \red{\epsilon_{\text{gps}}}
+\purple{z_{\text{gps}}} = \blue{p} + \red{\epsilon_{\text{gps}}}
 $$
 
 Finally, the only sensor that isn't formally a sensor, the accelerometer. It doesn't measure a state! It measures the acceleration of the point it is fixed to relative to a local inertial frame, expressed along its own axes. That is indirectly related to the \textit{derivative} of twist.
 $$
-\orange{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} \green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} + \red{\epsilon_{\text{acc}}}
+\purple{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} \green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} + \red{\epsilon_{\text{acc}}}
 $$
 
 where,
@@ -598,7 +600,7 @@ $$
 The reason why we shouldn't think of the accelerometer as a state sensor will be clear when we discuss Navigation. Lastly, the gyroscope and accelerometer are usually together on a single chip called an \href{https://www.youtube.com/watch?v=eqZgxR6eRjo}{inertial measurement unit} (IMU).
 
 Now let's summarize our complete MIL-robot core model.\\
-\blue{Robot-state} | \green{Earth-state} | Constant / Operator | \red{Input / Disturbance / Noise} | \orange{Measurement}
+\blue{Robot-state} | \green{Earth-state} | Constant / Operator | \red{Input / Disturbance / Noise} | \purple{Measurement}
 
 \myline
 
@@ -645,42 +647,42 @@ $$
 
 \textbf{Pressure Transducer}
 $$
-\orange{z_{\text{pres}}} = \rho \cs{E}{g} \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
+\purple{z_{\text{pres}}} = \rho \cs{E}{g} \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
 $$
 
 \myline
 
 \textbf{Doppler Velocity Log (single beam)}
 $$
-\orange{z_{dvl}} = \cs{\text{dvl}}{R}_C (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{dvl}}) \cdot \cs{\text{dvl}}{\zeta}_{\text{beam}} + \red{\epsilon_{\text{dvl}}}
+\purple{z_{dvl}} = \cs{\text{dvl}}{R}_C (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{dvl}}) \cdot \cs{\text{dvl}}{\zeta}_{\text{beam}} + \red{\epsilon_{\text{dvl}}}
 $$
 
 \myline
 
 \textbf{Magnetometer}
 $$
-\orange{z_{\text{mag}}} = A_{\text{mag}}\cs{\text{mag}}{R}_C \blue{R}^{\tr} \cs{E}{\Phi}(\blue{p}) + b_{\text{mag}} + \red{\epsilon_{\text{mag}}}
+\purple{z_{\text{mag}}} = A_{\text{mag}}\cs{\text{mag}}{R}_C \blue{R}^{\tr} \cs{E}{\Phi}(\blue{p}) + b_{\text{mag}} + \red{\epsilon_{\text{mag}}}
 $$
 
 \myline
 
 \textbf{GPS (loose coupling)}
 $$
-\orange{z_{\text{gps}}} = \blue{p} + \red{\epsilon_{\text{gps}}}
+\purple{z_{\text{gps}}} = \blue{p} + \red{\epsilon_{\text{gps}}}
 $$
 
 \myline
 
 \textbf{Gyroscope}
 $$
-\orange{z_{\text{gyro}}} = \cs{\text{gyro}}{R}_C(\blue{R}^{\tr}\green{\cs{N}{R^{\black{\tr}}}_E\cs{N}{\omega}_E} + \blue{\omega}) + \red{b_{\text{gyro}}} + \red{\epsilon_{\text{gyro}}},\ \ \ \ \dot{\red{b}}_{\text{\red{gyro}}} = \red{\epsilon_{\text{gyro\_bias}}}
+\purple{z_{\text{gyro}}} = \cs{\text{gyro}}{R}_C(\blue{R}^{\tr}\green{\cs{N}{R^{\black{\tr}}}_E\cs{N}{\omega}_E} + \blue{\omega}) + \red{b_{\text{gyro}}} + \red{\epsilon_{\text{gyro}}},\ \ \ \ \dot{\red{b}}_{\text{\red{gyro}}} = \red{\epsilon_{\text{gyro\_bias}}}
 $$
 
 \myline
 
 \textbf{Accelerometer}
 $$
-\orange{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} \green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} + \red{b_{\text{acc}}} + \red{\epsilon_{\text{acc}}},\ \ \ \ \dot{\red{b}}_{\text{\red{acc}}} = \red{\epsilon_{\text{acc\_bias}}}
+\purple{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} \green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} + \red{b_{\text{acc}}} + \red{\epsilon_{\text{acc}}},\ \ \ \ \dot{\red{b}}_{\text{\red{acc}}} = \red{\epsilon_{\text{acc\_bias}}}
 $$
 
 where,
