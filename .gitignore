@@ -1,0 +1,12 @@
+*.pyc
+*~
+
+*.aux
+*.log
+*.out
+
+*.toc
+
+*.pdf
+
+/old

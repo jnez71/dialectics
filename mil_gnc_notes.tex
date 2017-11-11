@@ -1,0 +1,728 @@
+%%%% This is the LaTeX source for "MIL's Guidance, Navigation, and Control Math Tutorial."
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% HEADER
+
+% Plain and simple
+\documentclass{article}
+
+% Format and figure stuff
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[usenames, dvipsnames]{color}
+
+% Math stuff
+\usepackage{mathtools}
+\usepackage{mathrsfs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xfrac}
+\usepackage{bm}
+
+% Code stuff
+\usepackage{listings}
+\usepackage{hyperref}
+
+% Page layout
+\geometry{top=1in,bottom=1in}
+\hyphenpenalty = 10000
+\setlength\parindent{0pt}
+\setlength{\jot}{10pt}
+
+% Hyperlink format
+\hypersetup{colorlinks=true,
+            linkcolor=blue,
+            filecolor=magenta,
+            urlcolor=blue}
+
+% Tab command
+\newcommand\tab[1][1cm]{\hspace*{#1}}
+
+% Line command
+\newcommand\myline{\noindent\makebox[\linewidth]{\rule{\paperwidth - 2in}{0.4pt}}}
+
+% Code font
+\def\code#1{\texttt{#1}}
+
+% Quick colors
+\definecolor{stateblue}{rgb}{0, 0, 0.75}
+\definecolor{darkgreen}{rgb}{0, 0.5, 0}
+\definecolor{orange}{RGB}{180, 60, 0}
+\def\green#1{\textcolor{darkgreen}{#1}}
+\def\red#1{\textcolor{red}{#1}}
+\def\blue#1{\textcolor{stateblue}{#1}}
+\def\orange#1{\textcolor{orange}{#1}}
+\def\black#1{\textcolor{black}{#1}}
+
+% Coordinate system notation
+\def\cs#1#2%
+  {\mathop{}%
+   \mathopen{\vphantom{#2}}^{#1}%
+   \kern-\scriptspace%
+   #2}
+
+% Custom math symbols - linear algebra
+\DeclareMathOperator*{\tr}{\intercal}
+\DeclareMathOperator*{\zero}{\underline{0}}
+\DeclareMathOperator*{\eye}{\underline{1}}
+\newcommand\inv[1]{#1\raisebox{1.15ex}{$\scriptscriptstyle-\!1$}}
+\newcommand\pinv[1]{#1\raisebox{1.15ex}{$\scriptscriptstyle\dist\!1$}}
+
+% Custom math symbols - probability
+\DeclareMathOperator*{\E}{E}
+\DeclareMathOperator*{\cov}{cov}
+\DeclareMathOperator*{\dist}{\sim}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TITLE
+
+\title{MIL's Guidance, Navigation, and Control Math Tutorial}
+\author{Jason Nezvadovitz}
+\date{September 2017}
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% INTRO
+
+The Guidance, Navigation, and Control (\href{https://en.wikipedia.org/wiki/Guidance,_navigation,_and_control}{GNC}) software stack is responsible for abstracting waypoint commands like \code{robot.go(there)}, where \code{there} is a ``waypoint.'' From highest level to lowest level, the MIL robot abstraction architecture is roughly,
+\begin{center}
+  -Mission AI\\
+  \tab -Perception\\
+  \tab -\textbf{GNC}\\
+  \tab\tab -Drivers\\
+  \tab\tab\tab -Hardware\\
+\end{center}
+
+(The placement of Perception is debatable; sometimes it is a part of Mission AI and other times it is a part of GNC). In any case, MIL prefers to let GNC provide waypoint commands, so we have the following definitions,
+\begin{itemize}
+  \item Guidance: planning a desirable path from the robot's current state to the Mission's waypoint
+  \item Navigation: determining the current state
+  \item Control: commanding the robot's actuators (i.e. motors) to carry out Guidance's plan
+\end{itemize}\smallskip
+
+While the GNC stack usually consists of a variety of \href{http://www.ros.org/}{ROS} nodes, if we were to completely black-box it as a single ROS node, it would provide some sort of \code{goto\_waypoint} action, subscribe to something like \code{/map}, and publish to something like \code{/actuator\_efforts}. The \code{/map} topic would contain something like an occupancy grid and the \code{/actuator\_efforts} topic would contain something like motor voltage values. Internally, GNC would be configured with model information about the robot (like the locations of the actuators and sensors) and tuned parameters (like gains and step-sizes).\\
+
+We will cover all of that and more in this document. I will try to make it self-contained and comprehensive, but at the same time I will try to avoid making it a TL;DR textbook. More importantly, this document is intended for a very wide audience, from university sophomores to graduate students. To understand everything, you will only need some background in,
+\begin{itemize}
+  \item Basic physics
+  \item Linear algebra
+  \item Multivariable calculus
+  \item Ordinary differential equations
+  \item Basic probability theory
+  \item Computer programming
+\end{itemize}
+
+Just one course in each of those subjects is sufficient, so fear not! Let's begin.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TOC
+
+\clearpage
+\tableofcontents
+\include{mil_gnc_notes.toc}
+% REMEMBER TO COMPILE TWICE FOR TOC TO SHOW UP
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% BODY
+
+\section{Modeling}
+
+The first step in GNC development is to formulate a mathematical representation of our robot. The assumptions we make along the way will have a lasting impact on everything else we do. We will begin by engineering a submarine model and then we will discuss modifications that make the model into a boat or a quadcopter (MIL loves marine and aerial vehicles). Even with that narrow focus, many of the steps we will take are extremely general. The objective of this section is both to provide the usual MIL robot model and to convey how we approach robot modeling in general.
+
+\subsection{Reference Frames and Coordinates Systems}
+
+We are interested in modeling the motion of the robot with respect to the Earth. This introduces two frames of reference: the Earth and the robot. We assume that both the Earth and the robot are rigid bodies so we can construct coordinate systems by referencing points fixed to each body.\\
+
+Denote a coordinate system fixed to the Earth as $E = \{E_1, E_2, E_3\}$ where each $E_i$ is a basis vector (direction). One example is \href{https://en.wikipedia.org/wiki/ECEF}{Earth-Centered Earth-Fixed} (ECEF) which has its origin at the approximate center of the Earth, $E_1$ pointing to the Prime Meridian, $E_3$ pointing along the Earth's axis of rotation, and $E_2 = E_3 \times E_1$. Another example is \href{https://upload.wikimedia.org/wikipedia/commons/7/73/ECEF_ENU_Longitude_Latitude_relationships.svg}{East-North-Up} (ENU) which has its origin wherever the robot is initialized, $E_1$ pointing East, $E_2$ pointing North, and $E_3 = E_1 \times E_2$ pointing perpendicular to the flat ground (Up). Note that once the robot is initialized, ENU stays at that initialization location on Earth; it doesn't follow the robot, it only moves with the Earth.\\
+
+On the other hand, a coordinate system fixed to the robot does move with the robot. Denote it $C = \{C_1, C_2, C_3\}$. The usual choice for robo-vehicles is to have the origin at the center-of-mass (COM) of the robot, $C_1$ pointing forward, $C_2$ pointing left, and $C_3$ pointing overhead. As an example, ``forward'' could be defined by the line from the robot's COM to its headlights (regardless of the COM's velocity). Both points defining that direction are fixed to the robot (thanks to the rigid body assumption), so we say that the vector itself is fixed to the robot. $C$ is a set of three non-collinear robot-fixed vectors, while $E$ is a set of three non-collinear Earth-fixed vectors.\\
+
+Reference frames are chosen by the modeling objective itself, while coordinate systems are chosen based on convenience. We will soon see that the following two decisions are very convenient:
+\begin{itemize}
+  \item Every coordinate system we choose is orthonormal and right-handed (i.e. its basis vectors are mutually orthogonal, have unit length, and follow the right-hand rule)
+  \item The origin of $C$ is at the COM of the robot (other robot-fixed coordinate systems can have their origins elsewhere, but whichever one we call ``$C$'' must be centered at the COM)
+\end{itemize}
+
+Both ECEF and ENU are orthonormal and right-handed, so $E$ can be either one (take your pick). We also don't care how you define the robot's $C_1$ ``forward'' direction as long as it is orthogonal to the other $C$-directions and that the origin is at the COM. (The COM decision won't play a role until Section 1.3).\\
+
+Once $E$ and $C$ have been individually specified, we can begin to analyze their relationship. Suppose for now that the origins of $E$ and $C$ coincide. The position of some point $o$ is,
+$$
+{r}_o\ =\ e_1E_1 + e_2E_2 + e_3E_3\ =\ c_1C_1 + c_2C_2 + c_3C_3
+$$
+
+Read this as ``${r}_o$ is $e_1$ in the $E_1$-direction plus $e_2$ in the $E_2$-direction plus $e_3$ in the $E_3$-direction, which is also equal to $c_1$ in the $C_1$-direction plus $c_2$ in the $C_2$-direction plus $c_3$ in the $C_3$-direction.'' It is the same point ${r}_o$ regardless, but numerically we must pick one representation or the other, so we distinguish them as,
+$$
+\cs{E}{r}_o = \begin{bmatrix}e_1 \\ e_2 \\ e_3\end{bmatrix},\ \ \ \ \cs{C}{r}_o = \begin{bmatrix}c_1 \\ c_2 \\ c_3\end{bmatrix}
+$$
+
+Suppose we know ${r}_o$ in $C$-coordinates but want to express it in $E$-coordinates. That is, we know $c_1$, $c_2$, $c_3$, but we want to know $e_1$, $e_2$, $e_3$. First project ${r}_o$ onto $E_1$ with a dot product,
+$$
+e_1E_1 \cdot E_1\ +\ e_2E_2 \cdot E_1\ +\ e_3E_3 \cdot E_1\ \ =\ \ c_1C_1 \cdot E_1\ +\ c_2C_2 \cdot E_1\ +\ c_3C_3 \cdot E_1
+$$
+
+Since we choose our coordinate systems to be orthonormal, $E_i \cdot E_i = 1$ and $E_i \cdot E_j = 0$, we have,
+$$
+e_1 = \begin{bmatrix} E_1 \cdot C_1 & E_1 \cdot C_2 & E_1 \cdot C_3 \end{bmatrix} \begin{bmatrix} c_1 \\ c_2 \\ c_3 \end{bmatrix}
+$$
+
+Recall that the dot product of two unit vectors is the cosine of the angle between them, so the elements of the row vector above are cosines of the angles between the $E_1$ direction and each of the $C_i$ directions. We can follow this projection procedure for each direction in $E$ to write,
+$$
+\begin{bmatrix} e_1 \\ e_2 \\ e_3 \end{bmatrix} = \begin{bmatrix} E_1 \cdot C_1 & E_1 \cdot C_2 & E_1 \cdot C_3 \\ E_2 \cdot C_1 & E_2 \cdot C_2 & E_2 \cdot C_3 \\ E_3 \cdot C_1 & E_3 \cdot C_2 & E_3 \cdot C_3 \end{bmatrix} \begin{bmatrix} c_1 \\ c_2 \\ c_3 \end{bmatrix}
+$$
+
+We denote the \href{https://en.wikipedia.org/wiki/Rotation_matrix}{rotation matrix} of direction-cosines as $\cs{E}R_C$ and, under the assumption that $E$ and $C$ are coincident, we can write $\cs{E}{r}_o = \cs{E}R_C \cs{C}{r}_o$. When they are not coincident, we must add the offset of their origins. Let $\cs{E}{r}_c$ denote the position of the $C$-origin expressed in $E$ coordinates. The vector from the $E$-origin to point $o$ is the vector from the $E$-origin to the $C$-origin plus the vector from the $C$-origin to point $o$, but mind your coordinate systems!
+$$
+\cs{E}{r}_o = \cs{E}{r}_c + \cs{E}R_C \cs{C}{r}_o
+$$
+
+Notice how the top-left superscript of each term is the same. This means that the equation is consistent in coordinates. If we had a computer add $\cs{E}{r}_c$ to $\cs{C}{r}_o$ without factoring in $\cs{E}R_C$, the output would be garbage.\\
+
+Rotation matrices have a lot of neat properties, but the main things we will need to know are that,
+$$
+\cs{E}{R}_C = \cs{C}{R}_E^{-1} = \cs{C}{R}_E^{\tr}\ \ \ \ \text{and}\ \ \ \ Ra \times Rb = R(a \times b)\ \ \forall a, b \in \mathbb{R}^3,\ R \in \mathcal{SO}(3)
+$$
+
+where \href{https://en.wikipedia.org/wiki/Rotation_group_SO(3)}{$\mathcal{SO}(3)$} is the set of all rotation matrices. Also, note that \href{https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation}{unit quaternions} are just an alternative representation of rotation matrices. For every operation you perform with a rotation matrix, you can do the same with a quaternion and usually for less computational effort. If you are looking for more interesting mathematical beauty / rationales for quaternions, learn about Lie groups and representation theory. In the end, the best way to think about any orientation object is the \href{https://en.wikipedia.org/wiki/Axis%E2%80%93angle_representation}{angle-axis interpretation}.\\
+
+\subsection{General Transformations}
+
+With the only assumption being that two coordinate systems $A$ and $B$ are each orthonormal and same-handed, we derived the following geometric truth about some point $o$,
+$$
+\cs{A}{r}_o = \cs{A}{r}_b + \cs{A}R_B \cs{B}{r}_o
+$$
+
+Some think of this as a ``rule'' for transforming positions (like $r_o$) from one coordinate system (like $B$) to another (like $A$). But what about velocities and accelerations? We will represent a time derivative by an overset dot symbol. Taking the derivative of our position equation,
+$$
+\cs{A}{\dot{r}}_o\ =\ \cs{A}{\dot{r}}_b\ +\ \cs{A}{\dot{R}}_B \cs{B}{r}_o\ +\ \cs{A}{R}_B \cs{B}{\dot{r}}_o
+$$
+
+Remember the \href{https://en.wikipedia.org/wiki/Product_rule#Chain_rule}{chain rule}! You can imagine some special cases in which $\cs{A}{\dot{r}}_b$ and/or $\cs{A}{\dot{R}}_B$ are zero (for example, if $B$ and $A$ are fixed to the same rigid body), but in general both $\cs{A}{r}_b$ and $\cs{A}{R}_B$ will depend on time. Taking the derivative of our velocity equation,
+$$
+\cs{A}{\ddot{r}}_o\ =\ \cs{A}{\ddot{r}}_b\ +\ \cs{A}{\ddot{R}}_B \cs{B}{r}_o\ +\ 2\cs{A}{\dot{R}}_B \cs{B}{\dot{r}}_o\ +\ \cs{A}{R}_B \cs{B}{\ddot{r}}_o
+$$
+
+Since $\cs{A}{R}_B$ encodes the orientation of $B$ relative to $A$, it is rightful to think that $\cs{A}{\dot{R}}_B$ has something to do with the angular velocity of $B$ relative to $A$, and that $\cs{A}{\ddot{R}}_B$ has something to due with the angular acceleration. Let's formalize that. Start with the basic theorem about rotation matrices and take a time derivative. (Let $\eye$ denote the identity matrix and $\zero$ denote the zero matrix).
+\begin{gather*}
+  \cs{A}{R}_B\cs{B}{R}_A = \eye\\
+  \cs{A}{\dot{R}}_B\cs{B}{R}_A + \cs{A}{R}_B\cs{B}{\dot{R}}_A = \zero\\
+  \cs{A}{\dot{R}}_B\cs{B}{R}_A = -(\cs{A}{\dot{R}}_B\cs{B}{R}_A)^{\tr}
+\end{gather*}
+
+The quantity $\cs{A}{\dot{R}}_B\cs{B}{R}_A$ is equal to the negative of its transpose, so it is a skew-symmetric matrix. Let's give it a name,
+$$
+\cs{A}{\Omega}_B := \cs{A}{\dot{R}}_B\cs{B}{R}_A
+$$
+
+Did you know that the ``cross-product'' operator is really just \href{https://en.wikipedia.org/wiki/Cross_product#Conversion_to_matrix_multiplication}{left multiplication by a skew-symmetric matrix}? This and some of the other curiosities of the above are explored more when you study \href{http://ethaneade.com/lie.pdf}{Lie algebras}, but we can just push forward. The following is true for any $a, b \in \mathbb{R}^3$,
+$$
+[a]_{\times}b = a \times b\ \ \text{where}\ \ [a]_{\times}\ \ \text{is a skew-symmetric matrix constructed with the components of $a$}
+$$
+
+Thus the skew-symmetric matrix $\cs{A}{\Omega}_B$ has a ``vector form'' denoted $\cs{A}{\omega}_B$ such that $\cs{A}{\Omega}_B = [\cs{A}{\omega}_B]_{\times}$. This vector is called ``angular velocity'' and its time derivative $\cs{A}{\dot{\omega}}_B$ is called ``angular acceleration.'' Now we can write with operator notation,
+\begin{align*}
+  \cs{A}{\dot{R}}_B\ &=\ \cs{A}{\Omega}_B\cs{A}{R}_B\\
+  &=\ \cs{A}{\omega}_B \times \cs{A}{R}_B\\
+  \cs{A}{\ddot{R}}_B\ &=\ \cs{A}{\dot{\Omega}}_B\cs{A}{R}_B\ +\ \cs{A}{\Omega}_B\cs{A}{\dot{R}}_B\\
+  &=\ \cs{A}{\dot{\omega}}_B \times \cs{A}{R}_B\ +\ \cs{A}{\omega}_B \times (\cs{A}{\omega}_B \times \cs{A}{R}_B)
+\end{align*}
+
+Substituting these operators back into our velocity and acceleration equations yields what many refer to as velocity and acceleration transformation ``rules'' or sometimes the ``transport theorem.''
+\begin{gather*}
+  \cs{A}{\dot{r}}_o\ =\ \cs{A}{\dot{r}}_b\ +\ \cs{A}{\omega}_B \times \cs{A}{R}_B \cs{B}{r}_o\ +\ \cs{A}{R}_B \cs{B}{\dot{r}}_o\\
+  \cs{A}{\ddot{r}}_o\ =\ \cs{A}{\ddot{r}}_b\ +\ \cs{A}{\dot{\omega}}_B \times \cs{A}{R}_B \cs{B}{r}_o\ +\ \cs{A}{\omega}_B \times (\cs{A}{\omega}_B \times \cs{A}{R}_B \cs{B}{r}_o)\ +\ 2\cs{A}{\omega}_B \times \cs{A}{R}_B \cs{B}{\dot{r}}_o\ +\ \cs{A}{R}_B \cs{B}{\ddot{r}}_o
+\end{gather*}
+
+The middle three terms on the right-side of the acceleration equation make up the Euler / centrifugal / Coriolis effects you may have heard of. Note that they always show up when transforming accelerations; the above equations hold for any orthonormal and same-handed $A$ and $B$.\\
+
+An important alternative approach to the above is to do the following,
+\begin{gather*}
+  \cs{B}{R}_A\cs{A}{R}_B = \eye\\
+  \cs{B}{\dot{R}}_A\cs{A}{R}_B + \cs{B}{R}_A\cs{A}{\dot{R}}_B = \zero\\
+  \cs{B}{\Omega}_A := \cs{B}{R}_A\cs{A}{\dot{R}}_B = -(\cs{B}{R}_A\cs{A}{\dot{R}}_B)^{\tr}
+\end{gather*}
+
+and see that $\cs{A}{R}_B \cs{B}{\Omega}_A = \cs{A}{\Omega}_B\cs{A}{R}_B$. That is, $\cs{A}{R}_B(\cs{B}{\omega}_A \times \cs{B}{r}_o) = \cs{A}{\omega}_B \times \cs{A}{R}_B \cs{B}{r}_o$.\\
+
+Finally, consider some third coordinate system $C$ (no connection to the robot $C$; our symbols in this section are general). It's pretty straight-forward to compose transformations,
+\begin{align*}
+  \cs{A}{r}_o &= \cs{A}{r}_b + \cs{A}R_B\Big{(}\cs{B}{r}_c + \cs{B}{R}_C\cs{C}{r}_o\Big{)}\\
+  &= \cs{A}{r}_b + \cs{A}R_B\cs{B}{r}_c + \cs{A}R_B\cs{B}{R}_C\cs{C}{r}_o\\
+  &= \cs{A}{r}_b + \cs{A}R_B\cs{B}{r}_c + \cs{A}{R}_C\cs{C}{r}_o
+\end{align*}
+
+where $\cs{A}{R}_C = \cs{A}{R}_B \cs{B}{R}_C$ is the composition of two rotations. Now we can derive relationships for angular velocities and angular accelerations across many frames. Taking a derivative,
+\begin{align*}
+  \cs{A}{R}_C &= \cs{A}{R}_B \cs{B}{R}_C\\
+  \cs{A}{\dot{R}}_C &= \cs{A}{\dot{R}}_B \cs{B}{R}_C + \cs{A}{R}_B \cs{B}{\dot{R}}_C\\
+  \cs{A}{\Omega}_C &= \cs{A}{\Omega}_B + \cs{A}{R}_B \cs{B}{R}_C \cs{C}{\Omega}_B \cs{C}{R}_A\\
+  &= \cs{A}{\Omega}_B + \cs{A}{R}_B \cs{B}{\Omega}_C \cs{B}{R}_A
+\end{align*}
+
+which in operator notation is,
+\begin{align*}
+  \cs{A}{\omega}_C &= \cs{A}{\omega}_B + \cs{A}{R}_B(\cs{B}{\omega}_C \times \cs{B}{R}_A)\\
+  &= \cs{A}{\omega}_B + \cs{A}{R}_B\cs{B}{\omega}_C
+\end{align*}
+
+Take one more derivative for angular acceleration,
+\begin{align*}
+  \cs{A}{\dot{\omega}}_C\ &=\ \cs{A}{\dot{\omega}}_B\ +\ \cs{A}{\dot{R}}_B\cs{B}{\omega}_C\ +\ \cs{A}{R}_B\cs{B}{\dot{\omega}}_C\\
+  \ &=\ \cs{A}{\dot{\omega}}_B\ +\ \cs{A}{\Omega}_B\cs{A}{R}_B\cs{B}{\omega}_C\ +\ \cs{A}{R}_B\cs{B}{\dot{\omega}}_C\\
+  \ &=\ \cs{A}{\dot{\omega}}_B\ +\ \cs{A}{\omega}_B \times \cs{A}{R}_B\cs{B}{\omega}_C\ +\ \cs{A}{R}_B\cs{B}{\dot{\omega}}_C
+\end{align*}
+
+We see that (minding some coordinate changes) angular velocities simply add while angular accelerations add with an additional ``fictitious'' effect no one has named yet (middle term of the last right-side).
+
+\subsection{Vehicle Model}
+
+Newton's Laws of Motion say that the sum of forces on the robot is proportional to the acceleration of its COM, as long as everything is expressed in coordinates fixed to an inertial reference frame. What is an inertial reference frame? There are better answers to this, but since we don't want to get into general relativity we should just say that an inertial reference frame is a frame in which Newton's Laws hold. Heh. Unfortunately, \href{https://en.wikipedia.org/wiki/Foucault_pendulum#Explanation_of_mechanics}{Earth does not fit the bill}. Same goes for the robot frame.\\
+
+Thus let's introduce one more reference frame that is truly inertial and define a coordinate system fixed to it, $N$. The most common choice for $N$ is \href{https://en.wikipedia.org/wiki/Earth-centered_inertial}{Earth-Centered Inertial} (ECI) which has the same origin as ECEF, but basis vectors constructed from celestial objects like the plane of Earth's orbit around the Sun and the axis of Earth's rotation at some specific point in time. We can write,
+$$
+\sum\cs{N}{F} = m\cs{N}{\ddot{r}}_c
+$$
+
+where the proportionality $m$ is the robot's total mass. (We have now made use of the decision that $C$ has its origin at the robot COM). We could now expand the left-side with a bunch of force models and call that an equation of motion, but it isn't the motion we are interested in! We care about how the robot moves relative to the Earth (which includes our lab and the oceans), not some inertial reference frame. Fortunately, we can relate $\cs{N}{\ddot{r}}_c$ to $\cs{E}{\ddot{r}}_c$ with the acceleration transformation equation we derived. Let $\cs{N}{r}_e$ denote the origin of $E$ expressed in $N$.
+$$
+\sum \cs{N}{F} = m\Big{(}\cs{N}{\ddot{r}}_e\ +\ \cs{N}{\dot{\omega}}_E \times \cs{N}{R}_E \cs{E}{r}_c\ +\ \cs{N}{\omega}_E \times (\cs{N}{\omega}_E \times \cs{N}{R}_E \cs{E}{r}_c)\ +\ 2\cs{N}{\omega}_E \times \cs{N}{R}_E \cs{E}{\dot{r}}_c\ +\ \cs{N}{R}_E \cs{E}{\ddot{r}}_c\Big{)}
+$$
+
+Notice how if $\cs{N}{\ddot{r}}_e$ and $\cs{N}{\omega}_E$ were zero (that is, if $E$ did not accelerate or spin relative to $N$) then $\cs{N}{\ddot{r}}_c$ would simply equal $\cs{N}{R}_E\cs{E}{\ddot{r}}_c$. Despite the fact that Earth's spin is really slow (1 revolution per day) and can potentially be ignored in control design, if navigation intends to use GPS, we can't ignore it. We can, however, ignore Earth's angular acceleration due to gravitational perturbations since its small amplitude has a period of about 26000 years. Thus $\cs{N}{\dot{\omega}}_E \approx \zero$ (Euler effect vanishes).\\
+
+Additionally, if we choose $N$ to be ECI and $E$ to be ECEF then $\cs{N}{r}_e = \zero \implies \cs{N}{\ddot{r}}_e = \zero$. Or more generally if we choose $E$ to be ENU then $\cs{N}{\ddot{r}}_e$ is nonzero but still simple since the $E$-origin moves with uniform circular motion about $N$. That is, $\cs{N}{\ddot{r}}_e = \cs{N}{\omega}_E \times (\cs{N}{\omega}_E \times \cs{N}{r}_e)$. Let's apply these problem-specific simplifications and solve for what we're interested in,
+$$
+\cs{E}{\ddot{r}}_c\ =\ \frac{1}{m}\sum \cs{E}{F}\ -\ \cs{E}{R}_N\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\cs{N}{r}_e + \cs{N}{R}_E \cs{E}{r}_c)\big{)}\ +\ 2\cs{N}{\omega}_E \times \cs{N}{R}_E \cs{E}{\dot{r}}_c\Big{)}
+$$
+
+This equation tells us how the position and velocity of the robot's COM change with time (by providing an expression for its acceleration). We are also interested in how the robot's orientation and angular velocity change with time. There is \href{https://en.wikipedia.org/wiki/Euler%27s_equations_(rigid_body_dynamics)}{''another law''} that can be \href{https://physics.stackexchange.com/questions/61722/newtons-second-law-equivalent-in-rotational-dynamics}{derived} from Newton's Laws, so it is not really another law but rather a result that goes hand-in-hand. This shouldn't be a course in dynamics, so I will not derive it here, just use it. If we define $\cs{N}{I}_c$ as the \href{https://en.wikipedia.org/wiki/Moment_of_inertia#Inertia_tensor}{second-moment of inertia} (``inertia matrix'') about the inertial-fixed axes centered on the COM, we can write,
+$$
+\sum\cs{N}{\tau}_c = \cs{N}{I}_c\cs{N}{\dot{\omega}}_C + \cs{N}{\omega}_C \times \cs{N}{I}_c\cs{N}{\omega}_C
+$$
+
+where $\sum \cs{N}{\tau}_c$ is the net torque about the COM. This equation is more familiar as ``torque is the rate of change of angular momentum.'' The rightmost term comes from the chain rule in that derivative, and it is what causes \href{https://en.wikipedia.org/wiki/Precession#Torque-free}{torque-free precession}. Also recall that \href{https://en.wikipedia.org/wiki/Torque}{torque} encodes the distribution of force through a cross product between point-of-application and line-of-action.\\
+
+Just like how physically $m > 0$, the matrix $\cs{N}{I}_c$ is also always positive-definite, so we can invert it,
+$$
+\cs{N}{\dot{\omega}}_C = \cs{N}{I}_c^{-1}\Big{(}\sum\cs{N}{\tau}_c - \cs{N}{\omega}_C \times \cs{N}{I}_c\cs{N}{\omega}_C\Big{)}
+$$
+
+Unfortunately, we are more interested in the orientation and angular velocity of the robot relative to $E$, not $N$. Fortunately, we know,
+\begin{gather*}
+  \cs{N}{\omega}_C = \cs{N}{\omega}_E + \cs{N}{R}_E\cs{E}{\omega}_C\\
+  \cs{N}{\dot{\omega}}_C = \cs{N}{\omega}_E \times \cs{N}{R}_E\cs{E}{\omega}_C + \cs{N}{R}_E\cs{E}{\dot{\omega}}_C
+\end{gather*}
+
+So our angular equation for the robot relative to the Earth is,
+$$
+\cs{E}{\dot{\omega}}_C = \cs{E}{R}_N\cs{N}{I}_c^{-1}\Big{(}\sum\cs{N}{\tau}_c - (\cs{N}{\omega}_E + \cs{N}{R}_E\cs{E}{\omega}_C) \times \cs{N}{I}_c(\cs{N}{\omega}_E + \cs{N}{R}_E\cs{E}{\omega}_C)\Big{)} - (\cs{E}{R}_N\cs{N}{\omega}_E) \times \cs{E}{\omega}_C
+$$
+
+Now before we go on to talk about our force models (the action of the water, gravity, etc) we are going to put these dynamics into \href{https://en.wikipedia.org/wiki/State-space_representation}{state-space form}. The state of the system is any set of quantities that can serve as a sufficient initial condition to its dynamics. ROS conventionally defines,
+\\\\\\
+\textbf{Position}\ \ $p := \cs{E}{r}_c$\medskip\\
+\textbf{Orientation}\ \ $R := \cs{E}{R}_C$\ \ (sometimes also called ``attitude'')\medskip\\
+\textbf{Velocity}\ \ $v := \cs{C}{R}_E\cs{E}{\dot{r}}_c$\medskip\\
+\textbf{Angular Velocity}\ \ $\omega := \cs{C}{R}_E\cs{E}{\omega}_C$\bigskip
+
+Note that $\cs{C}{R}_E\cs{E}{\dot{r}}_c \bm{\neq} \cs{C}{\dot{r}}_c = 0$. So why are $v$ and $\omega$ taken to be their $E$-expressions projected (but not translated) onto the $C$-axes? The reason is because now the components of $v$ represent the robot's ``forward-left-above'' velocities (sometimes called \href{https://en.wikipedia.org/wiki/Ship_motions}{surge, sway, and heave}) rather than ``north speed, east speed'' etc, and the components of $\omega$ represent \href{https://en.wikipedia.org/wiki/Euler_angles#/media/File:Yaw_Axis_Corrected.svg}{rolling, pitching, and yawing} rates about the robot-fixed axes instead of rotation rates about the ``east direction'' etc -- it's more natural to decompose velocities (translational and angular) along robot-fixed $C$-axes.\\
+
+These four quantities together provide 12 degrees of freedom in information. Position, velocity, and angular velocity are each vectors on $\mathbb{R}^3$, and orientation is a matrix member of the group $\mathcal{SO}(3)$ that encodes \href{https://en.wikipedia.org/wiki/Rotation_formalisms_in_three_dimensions#Rotation_matrix_.E2.86.94_Euler_angles}{roll, pitch, and yaw}. ROS also employs the following notation from screw theory,\\\\
+\textbf{Pose}\ \ $\eta := \begin{bmatrix} p \\ R \end{bmatrix}$\medskip\\
+\textbf{Twist}\ \ $\gamma := \begin{bmatrix} v \\ \omega \end{bmatrix}$\medskip\\
+
+Finally, the following is traditional notation for the state of our system,\\\\
+\textbf{State}\ \ $x := \begin{bmatrix} \eta \\ \gamma \end{bmatrix} = \begin{bmatrix} p \\ R \\ v \\ \omega \end{bmatrix} \in \mathbb{R}^3 \times \mathcal{SO}(3) \times \mathbb{R}^3 \times \mathbb{R}^3$\medskip\\
+
+Technically speaking, since we have also considered the Earth's motion relative to the inertial frame, the Earth should contribute an additional set of state variables through the quantities $\cs{N}{R}_E$ and $\cs{N}{r}_e$. However, the motion of the Earth relative to the inertial frame is well-known / observational, so rather than calling it part of the state we will consider it a set of known functions of time that we can ``look-up.'' We want to rewrite our dynamics solely in terms of constants, known functions of time, and the (robot's) state variables. We will need to employ the following obvious relations,
+$$
+\omega = R^{\tr}\cs{E}{\omega}_C\ \implies\ \cs{E}{\dot{\omega}}_C = \dot{R}\omega + R\dot{\omega} = \cs{E}{\Omega}_C\cs{E}{\omega}_C + R\dot{\omega} = R\dot{\omega}
+$$$$
+v = R^{\tr}\cs{E}{\dot{r}}_c\ \implies\ \cs{E}{\ddot{r}}_c = \dot{R}v + R\dot{v} = R(\omega \times v) + R\dot{v}
+$$
+
+Substitute the above into our dynamics, multiply through by $R^{\tr}$, and simplify,
+$$
+\dot{v}\ =\ \frac{1}{m}\sum \cs{C}{F}\ -\ R^{\tr}\cs{E}{R}_N\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\cs{N}{r}_e + \cs{N}{R}_E p)\big{)}\Big{)}\ -\ (2R^{\tr}\cs{E}{R}_N\cs{N}{\omega}_E + \omega) \times v
+$$$$
+\dot{\omega} = \cs{C}{I}_c^{-1} \Big{(}\sum\cs{C}{\tau}_c\ -\ (R^{\tr}\cs{E}{R}_N\cs{N}{\omega}_E + \omega) \times \cs{C}{I}_c (R^{\tr}\cs{E}{R}_N\cs{N}{\omega}_E + \omega)\Big{)}\ -\ (R^{\tr}\cs{E}{R}_N\cs{N}{\omega}_E) \times \omega
+$$
+
+
+where\ \ $\cs{C}{I}_c = R^{\tr} \cs{E}{R}_N \cs{N}{I}_c \cs{N}{R}_E R$. Note that $\cs{C}{I}_c$ is a constant we can \href{https://www.cati.com/blog/2017/03/demystifying-mass-moments-of-inertia-in-solidworks/}{get from CAD software} -- the second-moment of inertia about the $C$-axes, but centered on the COM. This is in contrast to $\cs{N}{I}_c$ which varies as the robot rotates (distribution of mass about the $N$-axes changes) unless the robot is a perfect sphere. Now then,
+$$
+\dot{\blue x} = \begin{bmatrix}\dot{\blue p} \\ \dot{\blue R} \\ \dot{\blue v} \\ \dot{\blue \omega} \end{bmatrix} = \begin{bmatrix}\blue R \blue v \\ \blue R[\blue \omega]_{\times} \\ \ \frac{1}{m}\orange{\sum \cs{C}{F}}\ -\ \blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)}\ -\ (2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\ \cs{C}{I}_c^{-1} \Big{(}\orange{\sum\cs{C}{\tau}_c} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega)\Big{)} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega\end{bmatrix}
+$$
+
+is the state-space dynamic, with state variables written in \blue{blue}, functions dependent on the state written in \orange{orange}, Earth functions of time written in \green{green}, and constants / operators written in black. Of course, we still need to do some real modeling by putting in expressions for the forces and torques we anticipate acting on the vehicle -- most importantly, those due to our very own actuators! Everything we have done up to now has assumed only three things:
+\begin{enumerate}
+  \item Newton's Laws apply (robot is much slower than light and much larger than quantum scale)
+  \item The robot is a single rigid body (no linkages / arms or flexible parts)
+  \item The angular acceleration of the Earth is negligible
+\end{enumerate}
+
+We will now introduce more assumptions that clearly make our model a submarine:
+\begin{enumerate}
+  \item The robot operates in a uniform gravitational field constantly ``down'' in $E$-coordinates
+  \item Gravity-induced hydrostatic buoyancy acts at all times
+  \item Drag from the water is proportional to and opposes twist (linear and angular velocity)
+  \item The water flows around the robot / none is pushed with the robot (no fluid inertial effects)
+  \item The robot does not interact with its wake
+  \item The robot has $n$ thrusters fixed rigidly to its frame
+  \item The robot can instantaneously call upon thrust from any thruster (no slew rate)
+  \item The thruster propeller diameters and inertias are small enough to make back-torques negligible
+  \item Wind / current is a steady (or very slowly varying) uniform push in $E$-coordinates
+  \item All other disturbances are rare / anomalous / can be shoved into a random function of time
+\end{enumerate}
+
+These new assumptions are about what acts on the vehicle; they are very influential assumptions. Are they all justifiable? In practice, MIL has found that they are, but try to recognize their limitations, and when something is going wrong, remember to question them. However, GNC is really all about \textit{dealing with model uncertainty} -- so our simplified submarine should suffice. With these assumptions we have,
+$$
+\sum \cs{C}F\ =\ B_p\beta(u)\ +\ (m - \rho V)R^{\tr}\cs{E}{g}\ -\ D_p v\ +\ R^{\tr}\cs{E}{\mu}\ +\ \delta_p
+$$
+
+On the right-side, from left to right the terms are the following effects: thrust, gravity+buoyancy, drag, wind+current, waves+randomness. Let's explore each term.\\
+
+What the robot actually controls is called $u$, a vector of $n$ motor efforts (like voltage or PWM).
+$$
+u = \begin{bmatrix} u_1 \\ u_2 \\ \vdots \\ u_n \end{bmatrix} = \begin{bmatrix} \text{effort to thruster number 1} \\ \text{effort to thruster number 2} \\ \vdots \\ \text{effort to thruster number n} \end{bmatrix}
+$$
+
+There are limits to how much effort we can command, like say -24 V to +24 V or perhaps -100\% duty cycle to +100\% duty cycle, or maybe if our motor drivers command by RPM it'd be like -max\_rpm to +max\_rpm. We can say concisely that $u$ gets ``saturated'' between $u_{\text{min}} \leq u \leq u_{\text{max}}$, where those inequalities are elementwise. Additionally, each thruster has some performance characteristic: how much thrust it puts out for a given effort value. These characteristics can be nonlinear in general: twice the effort value doesn't necessarily mean twice the thrust (unless you want to add that to the assumptions list). Ideally the manufacturer will provide you with the specs but sometimes you have to collect that data yourself with tests we will discuss later. For now, we will just encode both the limits and performance characteristics into the function $\beta$ which takes a vector of $n$ efforts and returns a vector of $n$ thrusts.
+$$
+\beta(u) = \begin{bmatrix} \beta_1(u_1) \\ \beta_2(u_2) \\ \vdots \\ \beta_n(u_n) \end{bmatrix}
+$$
+
+In the above, $\beta_i$ is a function that clips the $i^{\text{th}}$ thruster to a value between $u_{{\text{min}}_i}$ and $u_{{\text{max}}_i}$, and then (through complicated propulsion dynamics) converts the bounded effort into a corresponding thrust value in units of force. Note that fundamentally, we can send whatever value we want to $u$ (that is why it is called ``the control''), but in the dynamic, $u$ always comes in through $\beta$ which clips it at some limits and converts it from effort values to physical thrusts.\\
+
+The matrix $B_p$ converts the vector of thrusts into a total force on the robot chassis expressed in $C$.
+$$
+B_p = \begin{bmatrix} \cs{C}{\zeta}_1 & \cs{C}{\zeta}_2 & \ldots & \cs{C}{\zeta}_n \end{bmatrix}\ :\ \mathbb{R}^n \to \mathbb{R}^3
+$$
+
+where $\cs{C}{\zeta}_i$ is a unit column vector for the direction that the $i^{\text{th}}$ thruster points, expressed in $C$-coordinates (i.e. a constant given by CAD). By expanding $B_p \beta(u)$, we see that it is just a simple sum of forces from each thruster.
+$$
+\cs{C}F_{\text{thrusters}} = B_p \beta(u) = \beta_1(u_1)\cs{C}{\zeta}_1 + \beta_2(u_2)\cs{C}{\zeta}_2 + \ldots + \beta_n(u_n)\cs{C}{\zeta}_n
+$$
+
+Read that as $\beta_1(u_1)$ in the $\cs{C}{\zeta}_1$-direction plus $\beta_2(u_2)$ in the $\cs{C}{\zeta}_2$-direction, etc. Since the $\cs{C}{\zeta}_i$ are expressed naturally in $C$-coordinates, the whole sum returns a force expressed in $C$. Good, because that's what it should be when part of $\sum \cs{C}{F}$.\\
+
+Next up is $(m - \rho V)R^{\tr}\cs{E}{g}$. Here, $\rho$ is the density of the fluid the robot is in (water, I hope), and $V$ is the total submerged volume. If the submarine is at the surface, $V(p, R)$ requires a complicated calculation to determine what is above and below the water, so let's restrict our conversation to the normal operating condition of full-submergence. Then $V$ is just a constant: the total volume of the robot, a constant given by CAD. The difference $m - \rho V$ is the difference between the robot's inertial mass and the mass of the water it has displaced. This ``effective mass'' reflects the battle between gravity pulling down and water pushing up. It all happens along the direction of local gravity, which is encoded by, for example, this ENU vector when within miles of the ENU origin,
+$$
+\cs{E}{g} = \begin{bmatrix} 0 \\ 0 \\ -9.81 \sfrac{\text{m}}{\text{s\textsuperscript{2}}} \end{bmatrix}
+$$
+
+Drag! The matrix $D_p$ contains a bunch of drag coefficients. Its simplest form is diagonal,
+$$
+D_p =
+\begin{bmatrix}
+  {D_p}_{11} & 0      & 0\\
+  0      & {D_p}_{22} & 0\\
+  0      & 0      & {D_p}_{33}
+\end{bmatrix}
+$$
+
+The scalar ${D_p}_{11}$ encodes the robot's drag profile in the $C$ forward direction, and is a constant because the robot's geometry is constant in $C$-coordinates. It multiplies the robot's forward velocity (surge, the first element of $v$) to yield the drag force in the forward direction. $D_p v$ encodes this for each $C$ velocity (surge, sway, and heave). If your robot is bulky and slow (\textsuperscript{*}glares at SubjuGator\textsuperscript{*}), this model is probably accurate enough. More hydrodynamic awesome vehicles potentially need quadratic drag and/or off-diagonal coefficients. Hydroplaning boats need drag coefficients that themselves vary with velocity (the drag profile shrinks as it goes faster). We will discuss this later.\\
+
+If you are underwater, $\cs{E}{\mu}$ is the current. If you are above water, $\cs{E}{\mu}$ is the wind. It is a constant vector in $E$-coordinates (say, steady eastward wind) so we must consider how it appears in $C$-coordinates to put it in our sum. The usual $R^{\tr}$ rescues us.\\
+
+Finally, $\delta_p$. This is, literally everything else (not a constant). We know nothing about its form, and while doing control design, we will first pretend it doesn't exist, and then analyze our design by asking ``what would $\delta_p$ need to be in order to mess this all up?'' That is, we will want some kind of margin for how much $\delta_p$ GNC can accept before misbehaving. Good designs have a ton of margin, but ultimately margin is limited by control authority. If your thrusters are weak ($|u_{\text{min}}|$ and $|u_{\text{max}}|$ are small) then there is just not much that can be done -- a large $\delta_p$ simply carries the robot away.\\
+
+Torque time. It's usually simplest to think of each torque as corresponding to one of the forces we discussed, pre-crossed by a vector to that force's point of application. There will be one caveat to this regarding drag.
+$$
+\sum \cs{C}{\tau}_c\ =\ B_q\beta(u)\ -\ \cs{C}{r}_{\text{v}} \times \rho V R^{\tr}\cs{E}{g}\ -\ \cs{C}{r}_{\text{d}} \times D_p v\ -\ D_q \omega\ +\ \delta_q
+$$
+
+Expressed in $C$-coordinates, the $i^{\text{th}}$ thruster is fixed to a point $\cs{C}{r}_{u_i}$ on the robot (given by CAD). It is important to remember that this is the thruster's position relative to the COM.
+\begin{align*}
+{\cs{C}{\tau}_c}_{\text{thrusters}} &= \Big{(}\cs{C}{r}_{u_1} \times \beta_1(u_1)\cs{C}{\zeta}_1\Big{)}\ +\ \Big{(}\cs{C}{r}_{u_2} \times \beta_2(u_2)\cs{C}{\zeta}_2\Big{)}\ +\ \ldots\ +\ \Big{(}\cs{C}{r}_{u_n} \times \beta_n(u_n)\cs{C}{\zeta}_n\Big{)}\\
+&= \begin{bmatrix} \Big{(}\cs{C}{r}_{u_1} \times \cs{C}{\zeta}_1\Big{)} & \Big{(}\cs{C}{r}_{u_2} \times \cs{C}{\zeta}_2\Big{)} & \ldots & \Big{(}\cs{C}{r}_{u_n} \times \cs{C}{\zeta}_n\Big{)} \end{bmatrix} \beta(u)\\
+&= B_q \beta(u)
+\end{align*}
+
+where each $\cs{C}{r}_{u_i} \times \cs{C}{\zeta}_i$ forms a column of the matrix $B_q$. That is, $B_q$ encodes all the thruster lever-arm information. Letting $\cs{C}{r}_{\text{v}}$ be a vector to the robot's centroid (center of volume, the buoyancy action point) expressed in $C$-coordinates, we see that the buoyancy torque term has a similar form: $-\cs{C}{r}_{\text{v}} \times \rho V R^{\tr}\cs{E}{g}$. Gravity exerts no direct torque because a uniform gravitational field acts directly on the COM of a rigid-body (i.e. its ``balance point''). Finally, letting $\cs{C}{r}_{\text{d}}$ be a vector to the robot's center of drag (expressed in $C$-coordinates), we similarly have the torque $- \cs{C}{r}_{\text{d}} \times D_p v$.\\
+
+The $- \cs{C}{r}_{\text{d}} \times D_p v$ torque term has the effect of rotating the robot while it translates. This happens because the drag profile isn't symmetric about the COM ($\cs{C}{r}_{\text{d}} \neq 0$). But what if the robot isn't translating? What if $v = 0$ but $\omega \neq 0$? It shouldn't be able to just spin forever, so the term $D_q \omega$ dampens that. It is analogous to the $D_p v$ force term we saw before, and likely diagonal as well. The reason we need this split up is because of how simplified our drag model is. Really, drag is a distributed force over all surfaces on the vehicle, but we are taking a more lumped-parameter approach. Speaking of lumped-parameters, $\delta_q$ lumps up all the other torques we don't expect.\\
+
+Putting it all together:
+$$
+\dot{\blue x} = \begin{bmatrix}\dot{\blue p} \\ \dot{\blue R} \\ \dot{\blue v} \\ \dot{\blue \omega} \end{bmatrix} = \begin{bmatrix}\blue R \blue v \\ \blue R[\blue \omega]_{\times} \\ \ \frac{1}{m}\orange{\sum\cs{C}{F}}\ -\ \blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)}\ -\ (2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\ \cs{C}{I}_c^{-1} \Big{(}\orange{\sum\cs{C}{\tau}_c} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega)\Big{)} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega\end{bmatrix}
+$$$$
+\orange{\sum\cs{C}F}\ =\ B_p\beta(\red{u})\ +\ (m - \rho V)\blue{R}^{\tr}\cs{E}{g}\ -\ D_p \blue{v}\ +\ \blue{R}^{\tr}\cs{E}{\mu}\ +\ \red{\delta_p}
+$$$$
+\orange{\sum\cs{C}{\tau}_c}\ =\ B_q\beta(\red{u})\ -\ \cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g}\ -\ \cs{C}{r}_{\text{d}} \times D_p \blue{v}\ -\ D_q \blue{\omega}\ +\ \red{\delta_q}
+$$$$
+B_p = \begin{bmatrix} \cs{C}{\zeta}_1 & \cs{C}{\zeta}_2 & \ldots & \cs{C}{\zeta}_n \end{bmatrix},\ \ \ \ \ B_q = \begin{bmatrix} \big{(}\cs{C}{r}_{u_1} \times \cs{C}{\zeta}_1\big{)} & \big{(}\cs{C}{r}_{u_2} \times \cs{C}{\zeta}_2\big{)} & \ldots & \big{(}\cs{C}{r}_{u_n} \times \cs{C}{\zeta}_n\big{)} \end{bmatrix}
+$$\\
+
+where inputs to the system are in \red{red}. (The input we get to control / choose is $\red{u}$, while the ``input'' or disturbance we wish didn't exist is a $\red{\delta}$). So this is a simple submarine. A simple boat would be this exact same model, but
+\begin{itemize}
+  \item Remove the Up / Above dimensions, i.e. positions and velocities on $\mathbb{R}^2$
+  \item Remove the pitch and roll freedoms, i.e. $R_\text{boat} \in \mathcal{SO}(2)$
+  \item Remove all gravity / buoyancy terms (the dimensionality reduction IS the effect of gravity and buoyancy stabilizing the boat on the water surface)
+\end{itemize}
+
+Confined to planar motion, the $R$ matrix only represents one degree of freedom (often called yaw). With that simplification, you can treat the yaw angle itself as a state, and expand every $R$ as,
+$$
+R_\text{boat} = \begin{bmatrix} \cos(\text{yaw}) & -\sin(\text{yaw}) \\ \sin(\text{yaw}) & \cos(\text{yaw}) \end{bmatrix}
+$$
+
+In my opinion, that only makes these equations uglier. Working with angles explicitly has some tricky rules too: modulo math. You have to unwrap angles to stay in some consistent $2\pi$ range. In 3 dimensions, such modulo math doesn't even make sense (I think). Just stick to rotation matrices / quaternions (or in the boat's case quaternions become ordinary complex numbers).\\
+
+What if our boat is fast? What if it experiences more legit hydrodynamic drag stuff? You can make the drag model more advanced by including quadratic terms,
+$$
+D_p =
+\begin{bmatrix}
+  {D_p}_{11} + {D_p}_{11_2}|v_1| & 0      & 0\\
+  0      & {D_p}_{22} + {D_p}_{22_2}|v_2| & 0\\
+  0      & 0      & {D_p}_{33} + {D_p}_{33_2}|v_3|
+\end{bmatrix}
+$$
+
+or add off-diagonals (sometimes called cross-flow coefficients). By the way, a good quadcopter (or hexcopter... n-copter?) model is identical to the submarine model, just with
+\begin{itemize}
+  \item Non-negligible thruster reaction torques (propeller diameters are comparable to robot size)
+  \item No buoyancy ($\rho_{\text{air}} \approx 0$)
+\end{itemize}
+
+That is, the torque due to an n-copter's thrusters would be $B_q \beta(u) + B_p \beta_{\tau}(u)$ where $\beta_{\tau}(u)$ is an elementwise function that returns the axial back-torque a thruster generates for a given effort. It's typically a scaling of $\beta(u)$ that depends on propeller diameter and efficiency, and is signed by its handedness. Additionally, n-copter thrusters typically all point in the same direction which leaves the robot ``underactuated.'' That complicates control design but not simulation.\\
+
+Robot arms are a different story. They break a much more core assumption, so we can't just augment our force models. There are now many important bodies (connected by joints) and thus more (robot) state variables. Delving into this is \textit{not} beyond the scope of this document -- just start from first principles, write out the geometry and take derivatives! However, for the sake of time, we will skip out on talking about arms.\\
+
+So, our colorful dynamics equation is awesome, but it is a bit cumbersome to carry around (\textsuperscript{*}dynamicist cringes from what the control theorist is about to do\textsuperscript{*}). The pose dynamic,
+$$
+\dot{\blue{\eta}} = \begin{bmatrix}\blue{R}\blue{v} \\ \blue{R}[\blue{\omega}]_{\times}\end{bmatrix}
+$$
+
+looks fine, but the twist dynamic is a lot to take in. Let's compact it into,
+$$
+\dot{\blue{\gamma}} = M^{-1}\Big{(}B\beta(\red{u}) + f(\blue{x}) + \red{\delta}\Big{)}
+$$
+
+where,
+$$
+M =
+\begin{bmatrix}
+  m & 0 & 0 & 0 & 0 & 0\\
+  0 & m & 0 & 0 & 0 & 0\\
+  0 & 0 & m & 0 & 0 & 0\\
+  0 & 0 & 0 &   &     &  \\
+  0 & 0 & 0 &   & \cs{C}{I}_c &  \\
+  0 & 0 & 0 &   &     &  \\
+\end{bmatrix},\ \ B = \begin{bmatrix}B_p \\ B_q\end{bmatrix},\ \ \red{\delta} = \begin{bmatrix}\red{\delta_p} \\ \red{\delta_q}\end{bmatrix}
+$$
+
+$$
+f(\blue{x}) = \begin{bmatrix} 
+(m - \rho V)\blue{R}^{\tr}\cs{E}{g} - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)} - m(2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\
+-\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g} - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) - \cs{C}{I}_c(\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega
+\end{bmatrix}
+$$
+
+In this sleek form we see very clearly the following:
+\begin{enumerate}
+  \item Our input $\red{u}$ is saturated / nonlinearly transformed by $\beta$ (which depends on thruster specs), and then linearly mapped by $B$ (which depends on thruster placement)
+  \item The resulting wrench (which is a concatenation of force and torque) is met by the wrenches $f(\blue{x})$ and $\red{\delta}$; the former has a known structure (that is, we know what it depends on, like drag and wind) and the latter has an unknown structure but is hopefully usually zero
+  \item The sum of these wrenches gets scaled by a positive-definite matrix $M^{-1}$ and the result determines the evolution of twist
+  \item Twist determines the evolution of pose through a coordinate conversion $\blue{R}$
+\end{enumerate}
+
+\subsection{Sensor Models}
+
+We now have math describing the vehicle, but what about the sensors? The reasonable way to describe a sensor is as an algebraic function of the state and a random variable called noise:
+$$
+\orange{z} = h(\blue{x}, \red{\epsilon})
+$$
+
+where $\orange{z}$ is the sensor measurement, $h$ is the sensor model, $\blue{x}$ is the state, and $\red{\epsilon}$ is noise. For example, a \href{http://www.siliconsensing.com/technology/mems-gyroscopes/}{gyroscope} is a device that ideally measures the angular velocity of the thing it is attached to relative to a locally inertial frame, but expressed along the gyro axes.
+\begin{align*}
+\orange{z_{\text{gyro}}} &= \orange{\cs{\text{gyro}}{R}_N\cs{N}{\omega}_C} + \red{\epsilon_{\text{gyro}}}\\
+&= \cs{\text{gyro}}{R}_C(\blue{R}^{\tr}\green{\cs{N}{R^{\black{\tr}}}_E\cs{N}{\omega}_E} + \blue{\omega}) + \red{\epsilon_{\text{gyro}}}
+\end{align*}
+
+where $\cs{\text{gyro}}{R}_C$ is a constant rotation matrix relating $C$-coordinates to the mounting orientation of the gyro. The above makes the assumption of additive noise which is very common due to the input-superimposing nature of most sensors. In fact, the commonality of additive noise is also the reason why most sensor noise is Gaussian distributed -- sums of random variables converge to a Gaussian distribution (essentially the Central Limit Theorem). Thus we should probably assume $\red{\epsilon_{\text{gyro}}} \dist \mathcal{N}(\zero, \sigma_{\text{gyro}})$. But why zero mean? Because we can encode the mean as a ``bias'' $\red{b_{\text{gyro}}}$ which is the value the gyro reads when it is actually sitting still. That is,
+$$
+\orange{z_{\text{gyro}}} = \cs{\text{gyro}}{R}_C(\blue{R}^{\tr}\green{\cs{N}{R^{\black{\tr}}}_E\cs{N}{\omega}_E} + \blue{\omega}) + \red{b_{\text{gyro}}} + \red{\epsilon_{\text{gyro}}}
+$$
+
+still with $\red{\epsilon_{\text{gyro}}} \dist \mathcal{N}(\zero, \sigma_{\text{gyro}})$. The above is called a Gaussian or ``white-noise'' model. If we let the bias vary with time through some random walk (as opposed to remaining constant),
+$$
+\dot{\red{b}}_{\red{\text{gyro}}} = \red{\epsilon_{\text{gyro\_bias}}}
+$$
+
+where $\red{\epsilon_{\text{gyro\_bias}}} \dist \mathcal{N}(\zero, \sigma_{\text{gyro\_bias}})$, then we have a Brownian or ``red-noise'' model. (We are abusing stochastic differential equation notation by setting a rate of change equal to a random variable, but whatever). Rather than a pure random walk, we could have the bias tend back towards some central value... the bias's bias.
+$$
+\dot{\red{b}}_{\red{\text{gyro}}} = k_{\text{gyro}}(b_{\text{gyro\_bias}} - \red{b_{\text{gyro}}}) + \red{\epsilon_{\text{gyro\_bias}}}
+$$
+
+This is called an Ornstein-Uhlenbeck model, and it may be a breach of my Sylphase NDA. The point is that there is a lot of engineering care in choosing a sensor model's noise characteristics. Testing your sensors to determine what is negligible, what is constant, and what is actually varying (due to, say, temperature) is all part of the design process. We will list off a few more sensor models now but for clarity give them all simple white-noise.\\
+
+If we assume hydrostatic pressure, a \href{https://en.wikipedia.org/wiki/Pressure_sensor#Pressure-sensing_technology}{pressure sensor's} measurement is proportional to the $E$-depth.
+$$
+\orange{z_{\text{pres}}} = \rho \cs{E}{g} \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
+$$
+
+where $\cs{E}{r}_{\text{surf}}$ is a vector to the surface of the water above the sub in $E$-coordinates (approximately zero if $E$ is ENU) and $\cs{C}{r}_{\text{pres}}$ is the position of the pressure sensor in $C$-coordinates.\\
+
+A \href{https://en.wikipedia.org/wiki/Hall_effect_sensor}{magnetometer} measures the local magnetic field decomposed along the magnetometer's axes. Magnetic parts attached to the robot can distort the surrounding field in an affine way.
+$$
+\orange{z_{\text{mag}}} = A_{\text{mag}}\cs{\text{mag}}{R}_C \blue{R}^{\tr} \cs{E}{\Phi}(\blue{p}) + b_{\text{mag}} + \red{\epsilon_{\text{mag}}}
+$$
+
+where $\cs{E}{\Phi}(\blue{p})$ is a function that takes the robot's position on Earth and returns the magnetic field vector at that location, $A_{\text{mag}}$ is a symmetric matrix called the soft-iron effect and $b_{\text{mag}}$ is a vector called the hard-iron effect, both of which can be determined by \href{https://www.vectornav.com/support/library/magnetometer}{hard-soft calibration}.\\
+
+A \href{http://www.teledynemarine.com/explorer-doppler-velocity-log?ProductLineID=34}{doppler velocity log} (DVL) uses the doppler shift to measure its speed along the direction $\zeta_{\text{dvl}}$ of its acoustic pulse, relative to the object the pulse reflects off (ideally the Earth). Most DVLs come with 4 beam transmitters, but each beam is really a sensor on its own with the following model,
+$$
+\orange{z_{dvl}} = \cs{\text{dvl}}{R}_C (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{dvl}}) \cdot \cs{\text{dvl}}{\zeta}_{\text{beam}} + \red{\epsilon_{\text{dvl}}}
+$$
+
+A really nice GPS model would treat each satellite as providing its own state measurements (see: \href{https://sylphase.com/}{Sylphase}) so that Navigation can tightly-couple every observable, but we won't get into that here. For now, we can just view GPS as a noisy but direct measurement of position.
+$$
+\orange{z_{\text{gps}}} = \blue{p} + \red{\epsilon_{\text{gps}}}
+$$
+
+Finally, the only sensor that isn't formally a sensor, the accelerometer. It doesn't measure a state! It measures the acceleration of the point it is fixed to relative to a local inertial frame, expressed along its own axes. That is indirectly related to the \textit{derivative} of twist.
+$$
+\orange{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} \green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} + \red{\epsilon_{\text{acc}}}
+$$
+
+where,
+$$
+\orange{\cs{N}{\ddot{r}}_{\text{acc}}} = \green{\cs{N}{R}_E} \orange{\cs{E}{\ddot{r}}_{\text{acc}}}\ +\ \cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \orange{\cs{E}{r}_{\text{acc}}})\big{)}\ +\ 2\cs{N}{\omega}_E \times \green{\cs{N}{R}_E} \orange{\cs{E}{\dot{r}}_{\text{acc}}}
+$$$$
+\orange{\cs{E}{r}_{\text{acc}}} = \blue{p} + \blue{R}\cs{C}{r}_{\text{acc}}
+$$$$
+\orange{\cs{E}{\dot{r}}_{\text{acc}}} = \blue{R}(\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{acc}})
+$$$$
+\orange{\cs{E}{\ddot{r}}_{\text{acc}}} = \blue{R}\Big{(}\dot{\blue{v}}\ +\ \dot{\blue{\omega}} \times \cs{C}{r}_{\text{acc}}\ +\ \blue{\omega} \times (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{acc}})\Big{)}
+$$
+
+The reason why we shouldn't think of the accelerometer as a state sensor will be clear when we discuss Navigation. Lastly, the gyroscope and accelerometer are usually together on a single chip called an \href{https://www.youtube.com/watch?v=eqZgxR6eRjo}{inertial measurement unit} (IMU).
+
+Now let's summarize our complete MIL-robot core model.\\
+\blue{Robot-state} | \green{Earth-state} | Constant / Operator | \red{Input / Disturbance / Noise} | \orange{Measurement}
+
+\myline
+
+\textbf{State}
+$$
+\blue{x} := \begin{bmatrix} \blue{\eta} \\ \blue{\gamma} \end{bmatrix} = \begin{bmatrix} \blue{p} \\ \blue{R} \\ \blue{v} \\ \blue{\omega} \end{bmatrix} \in \mathbb{R}^3 \times \mathcal{SO}(3) \times \mathbb{R}^3 \times \mathbb{R}^3
+$$
+
+\myline
+
+\textbf{Pose}
+$$
+\dot{\blue{\eta}} = \begin{bmatrix}\blue{R}\blue{v} \\ \blue{R}[\blue{\omega}]_{\times}\end{bmatrix}
+$$
+
+\myline
+
+\textbf{Twist}
+$$
+\dot{\blue{\gamma}} = M^{-1}\Big{(}B\beta(\red{u}) + f(\blue{x}) + \red{\delta}\Big{)}
+$$
+
+where,
+$$
+M =
+\begin{bmatrix}
+  m & 0 & 0 & 0 & 0 & 0\\
+  0 & m & 0 & 0 & 0 & 0\\
+  0 & 0 & m & 0 & 0 & 0\\
+  0 & 0 & 0 &   &     &  \\
+  0 & 0 & 0 &   & \cs{C}{I}_c &  \\
+  0 & 0 & 0 &   &     &  \\
+\end{bmatrix},\ \ B = \begin{bmatrix}B_p \\ B_q\end{bmatrix},\ \ \red{\delta} = \begin{bmatrix}\red{\delta_p} \\ \red{\delta_q}\end{bmatrix}
+$$
+
+$$
+f(\blue{x}) = \begin{bmatrix} 
+(m - \rho V)\blue{R}^{\tr}\cs{E}{g} - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)} - m(2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\
+-\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g} - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) - \cs{C}{I}_c(\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega
+\end{bmatrix}
+$$
+
+\myline
+
+\textbf{Pressure Transducer}
+$$
+\orange{z_{\text{pres}}} = \rho \cs{E}{g} \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
+$$
+
+\myline
+
+\textbf{Doppler Velocity Log (single beam)}
+$$
+\orange{z_{dvl}} = \cs{\text{dvl}}{R}_C (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{dvl}}) \cdot \cs{\text{dvl}}{\zeta}_{\text{beam}} + \red{\epsilon_{\text{dvl}}}
+$$
+
+\myline
+
+\textbf{Magnetometer}
+$$
+\orange{z_{\text{mag}}} = A_{\text{mag}}\cs{\text{mag}}{R}_C \blue{R}^{\tr} \cs{E}{\Phi}(\blue{p}) + b_{\text{mag}} + \red{\epsilon_{\text{mag}}}
+$$
+
+\myline
+
+\textbf{GPS (loose coupling)}
+$$
+\orange{z_{\text{gps}}} = \blue{p} + \red{\epsilon_{\text{gps}}}
+$$
+
+\myline
+
+\textbf{Gyroscope}
+$$
+\orange{z_{\text{gyro}}} = \cs{\text{gyro}}{R}_C(\blue{R}^{\tr}\green{\cs{N}{R^{\black{\tr}}}_E\cs{N}{\omega}_E} + \blue{\omega}) + \red{b_{\text{gyro}}} + \red{\epsilon_{\text{gyro}}},\ \ \ \ \dot{\red{b}}_{\text{\red{gyro}}} = \red{\epsilon_{\text{gyro\_bias}}}
+$$
+
+\myline
+
+\textbf{Accelerometer}
+$$
+\orange{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} \green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} + \red{b_{\text{acc}}} + \red{\epsilon_{\text{acc}}},\ \ \ \ \dot{\red{b}}_{\text{\red{acc}}} = \red{\epsilon_{\text{acc\_bias}}}
+$$
+
+where,
+$$
+\orange{\cs{N}{\ddot{r}}_{\text{acc}}} = \green{\cs{N}{R}_E} \orange{\cs{E}{\ddot{r}}_{\text{acc}}}\ +\ \cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \orange{\cs{E}{r}_{\text{acc}}})\big{)}\ +\ 2\cs{N}{\omega}_E \times \green{\cs{N}{R}_E} \orange{\cs{E}{\dot{r}}_{\text{acc}}}
+$$$$
+\orange{\cs{E}{r}_{\text{acc}}} = \blue{p} + \blue{R}\cs{C}{r}_{\text{acc}}
+$$$$
+\orange{\cs{E}{\dot{r}}_{\text{acc}}} = \blue{R}(\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{acc}})
+$$$$
+\orange{\cs{E}{\ddot{r}}_{\text{acc}}} = \blue{R}\Big{(}\dot{\blue{v}}\ +\ \dot{\blue{\omega}} \times \cs{C}{r}_{\text{acc}}\ +\ \blue{\omega} \times (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{acc}})\Big{)}
+$$
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\clearpage
+\section{Simulation}
+
+\subsection{Experiments}
+
+\subsection{Solving Our ODEs}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\clearpage
+\section{Control}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\clearpage
+\section{Navigation}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\clearpage
+\section{Guidance}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\clearpage
+\section{Architecture}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CLOSING
+
+\end{document}
