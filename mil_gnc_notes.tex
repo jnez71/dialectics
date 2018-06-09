@@ -364,7 +364,7 @@ is the state-space dynamic, with state variables written in \blue{blue}, functio
 
 We will now introduce more assumptions that clearly make our model a submarine:
 \begin{enumerate}
-  \item The robot operates in a uniform gravitational field constantly ``down'' in $E$-coordinates
+  \item Gravity is uniform over the span of the robot's body
   \item Gravity-induced hydrostatic buoyancy acts at all times
   \item Drag from the water is proportional to and opposes twist (linear and angular velocity)
   \item The water flows around the robot / none is pushed with the robot (no fluid inertial effects)
@@ -378,7 +378,7 @@ We will now introduce more assumptions that clearly make our model a submarine:
 
 These new assumptions are about what acts on the vehicle; they are very influential assumptions. Are they all justifiable? In practice, MIL has found that they are, but try to recognize their limitations, and when something is going wrong, remember to question them. However, GNC is really all about \textit{dealing with model uncertainty} -- so our simplified submarine should suffice. With these assumptions we have,
 $$
-\sum \cs{C}F\ =\ B_p\beta(u)\ +\ (m - \rho V)R^{\tr}\cs{E}{g}\ -\ D_p v\ +\ R^{\tr}\cs{E}{\mu}\ +\ \delta_p
+\sum \cs{C}F\ =\ B_p\beta(u)\ +\ (m - \rho V)R^{\tr}\cs{E}{g}(p)\ -\ D_p v\ +\ R^{\tr}\cs{E}{\mu}\ +\ \delta_p
 $$
 
 On the right-side, from left to right the terms are the following effects: thrust, gravity+buoyancy, drag, wind+current, waves+randomness. Let's explore each term.\\
@@ -407,9 +407,9 @@ $$
 
 Read that as $\beta_1(u_1)$ in the $\cs{C}{\zeta}_1$-direction plus $\beta_2(u_2)$ in the $\cs{C}{\zeta}_2$-direction, etc. Since the $\cs{C}{\zeta}_i$ are expressed naturally in $C$-coordinates, the whole sum returns a force expressed in $C$. Good, because that's what it should be when part of $\sum \cs{C}{F}$.\\
 
-Next up is $(m - \rho V)R^{\tr}\cs{E}{g}$. Here, $\rho$ is the density of the fluid the robot is in (water, I hope), and $V$ is the total submerged volume. If the submarine is at the surface, $V(p, R)$ requires a complicated calculation to determine what is above and below the water, so let's restrict our conversation to the normal operating condition of full-submergence. Then $V$ is just a constant: the total volume of the robot, a constant given by CAD. The difference $m - \rho V$ is the difference between the robot's inertial mass and the mass of the water it has displaced. This ``effective mass'' reflects the battle between gravity pulling down and water pushing up. It all happens along the direction of local gravity, which is encoded by, for example, this ENU vector when within miles of the ENU origin,
+Next up is $(m - \rho V)R^{\tr}\cs{E}{g}(p)$. Here, $\rho$ is the density of the fluid the robot is in (water, I hope), and $V$ is the total submerged volume. If the submarine is at the surface, $V(p, R)$ requires a complicated calculation to determine what is above and below the water, so let's restrict our conversation to the normal operating condition of full-submergence. Then $V$ is just a constant: the total volume of the robot, a constant given by CAD. The difference $m - \rho V$ is the difference between the robot's inertial mass and the mass of the water it has displaced. This ``effective mass'' reflects the battle between gravity pulling down and water pushing up. It all happens along the direction of local gravity, which is encoded by, for example, this ENU vector when within miles of the ENU origin,
 $$
-\cs{E}{g} = \begin{bmatrix} 0 \\ 0 \\ -9.81 \sfrac{\text{m}}{\text{s\textsuperscript{2}}} \end{bmatrix}
+\cs{E}{g}(p \approx 0) = \begin{bmatrix} 0 \\ 0 \\ -9.81 \sfrac{\text{m}}{\text{s\textsuperscript{2}}} \end{bmatrix}
 $$
 
 Drag! The matrix $D_p$ contains a bunch of drag coefficients. Its simplest form is diagonal,
@@ -430,7 +430,7 @@ Finally, $\delta_p$. This is, literally everything else (not a constant). We kno
 
 Torque time. It's usually simplest to think of each torque as corresponding to one of the forces we discussed, pre-crossed by a vector to that force's point of application. There will be one caveat to this regarding drag.
 $$
-\sum \cs{C}{\tau}_c\ =\ B_q\beta(u)\ -\ \cs{C}{r}_{\text{v}} \times \rho V R^{\tr}\cs{E}{g}\ -\ \cs{C}{r}_{\text{d}} \times D_p v\ -\ D_q \omega\ +\ \delta_q
+\sum \cs{C}{\tau}_c\ =\ B_q\beta(u)\ -\ \cs{C}{r}_{\text{v}} \times \rho V R^{\tr}\cs{E}{g}(p)\ -\ \cs{C}{r}_{\text{d}} \times D_p v\ -\ D_q \omega\ +\ \delta_q
 $$
 
 Expressed in $C$-coordinates, the $i^{\text{th}}$ thruster is fixed to a point $\cs{C}{r}_{u_i}$ on the robot (given by CAD). It is important to remember that this is the thruster's position relative to the COM.
@@ -440,7 +440,7 @@ Expressed in $C$-coordinates, the $i^{\text{th}}$ thruster is fixed to a point $
 &= B_q \beta(u)
 \end{align*}
 
-where each $\cs{C}{r}_{u_i} \times \cs{C}{\zeta}_i$ forms a column of the matrix $B_q$. That is, $B_q$ encodes all the thruster lever-arm information. Letting $\cs{C}{r}_{\text{v}}$ be a vector to the robot's centroid (center of volume, the buoyancy action point) expressed in $C$-coordinates, we see that the buoyancy torque term has a similar form: $-\cs{C}{r}_{\text{v}} \times \rho V R^{\tr}\cs{E}{g}$. Gravity exerts no direct torque because a uniform gravitational field acts directly on the COM of a rigid-body (i.e. its ``balance point''). Finally, letting $\cs{C}{r}_{\text{d}}$ be a vector to the robot's center of drag (expressed in $C$-coordinates), we similarly have the torque $- \cs{C}{r}_{\text{d}} \times D_p v$.\\
+where each $\cs{C}{r}_{u_i} \times \cs{C}{\zeta}_i$ forms a column of the matrix $B_q$. That is, $B_q$ encodes all the thruster lever-arm information. Letting $\cs{C}{r}_{\text{v}}$ be a vector to the robot's centroid (center of volume, the buoyancy action point) expressed in $C$-coordinates, we see that the buoyancy torque term has a similar form: $-\cs{C}{r}_{\text{v}} \times \rho V R^{\tr}\cs{E}{g}(p)$. Gravity exerts no direct torque because a uniform gravitational field acts directly on the COM of a rigid-body (i.e. its ``balance point''). Finally, letting $\cs{C}{r}_{\text{d}}$ be a vector to the robot's center of drag (expressed in $C$-coordinates), we similarly have the torque $- \cs{C}{r}_{\text{d}} \times D_p v$.\\
 
 The $- \cs{C}{r}_{\text{d}} \times D_p v$ torque term has the effect of rotating the robot while it translates. This happens because the drag profile isn't symmetric about the COM ($\cs{C}{r}_{\text{d}} \neq 0$). But what if the robot isn't translating? What if $v = 0$ but $\omega \neq 0$? It shouldn't be able to just spin forever, so the term $D_q \omega$ dampens that. It is analogous to the $D_p v$ force term we saw before, and likely diagonal as well. The reason we need this split up is because of how simplified our drag model is. Really, drag is a distributed force over all surfaces on the vehicle, but we are taking a more lumped-parameter approach. Speaking of lumped-parameters, $\delta_q$ lumps up all the other torques we don't expect.\\
 
@@ -448,9 +448,9 @@ Putting it all together:
 $$
 \dot{\blue x} = \begin{bmatrix}\dot{\blue p} \\ \dot{\blue R} \\ \dot{\blue v} \\ \dot{\blue \omega} \end{bmatrix} = \begin{bmatrix}\blue R \blue v \\ \blue R[\blue \omega]_{\times} \\ \ \frac{1}{m}\orange{\sum\cs{C}{F}}\ -\ \blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)}\ -\ (2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\ \cs{C}{I}_c^{-1} \Big{(}\orange{\sum\cs{C}{\tau}_c} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega)\Big{)} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega\end{bmatrix}
 $$$$
-\orange{\sum\cs{C}F}\ =\ B_p\beta(\red{u})\ +\ (m - \rho V)\blue{R}^{\tr}\cs{E}{g}\ -\ D_p \blue{v}\ +\ \blue{R}^{\tr}\cs{E}{\mu}\ +\ \red{\delta_p}
+\orange{\sum\cs{C}F}\ =\ B_p\beta(\red{u})\ +\ (m - \rho V)\blue{R}^{\tr}\cs{E}{g}(\blue{p})\ -\ D_p \blue{v}\ +\ \blue{R}^{\tr}\cs{E}{\mu}\ +\ \red{\delta_p}
 $$$$
-\orange{\sum\cs{C}{\tau}_c}\ =\ B_q\beta(\red{u})\ -\ \cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g}\ -\ \cs{C}{r}_{\text{d}} \times D_p \blue{v}\ -\ D_q \blue{\omega}\ +\ \red{\delta_q}
+\orange{\sum\cs{C}{\tau}_c}\ =\ B_q\beta(\red{u})\ -\ \cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g}(\blue{p})\ -\ \cs{C}{r}_{\text{d}} \times D_p \blue{v}\ -\ D_q \blue{\omega}\ +\ \red{\delta_q}
 $$$$
 B_p = \begin{bmatrix} \cs{C}{\zeta}_1 & \cs{C}{\zeta}_2 & \ldots & \cs{C}{\zeta}_n \end{bmatrix},\ \ \ \ \ B_q = \begin{bmatrix} \big{(}\cs{C}{r}_{u_1} \times \cs{C}{\zeta}_1\big{)} & \big{(}\cs{C}{r}_{u_2} \times \cs{C}{\zeta}_2\big{)} & \ldots & \big{(}\cs{C}{r}_{u_n} \times \cs{C}{\zeta}_n\big{)} \end{bmatrix}
 $$\\
@@ -514,8 +514,8 @@ $$
 
 $$
 f(\blue{x}) = \begin{bmatrix} 
-(m - \rho V)\blue{R}^{\tr}\cs{E}{g} - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)} - m(2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\
--\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g} - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) - \cs{C}{I}_c(\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega
+(m - \rho V)\blue{R}^{\tr}\cs{E}{g}(\blue{p}) - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)} - m(2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\
+-\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g}(\blue{p}) - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) - \cs{C}{I}_c(\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega
 \end{bmatrix}
 $$
 
@@ -559,7 +559,7 @@ This is called an Ornstein-Uhlenbeck model, and it may be a breach of my Sylphas
 
 If we assume hydrostatic pressure, a \href{https://en.wikipedia.org/wiki/Pressure_sensor#Pressure-sensing_technology}{pressure sensor's} measurement is proportional to the $E$-depth.
 $$
-\purple{z_{\text{pres}}} = \rho \cs{E}{g} \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
+\purple{z_{\text{pres}}} = \rho \cs{E}{g}(\blue{p}) \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
 $$
 
 where $\cs{E}{r}_{\text{surf}}$ is a vector to the surface of the water above the sub in $E$-coordinates (approximately zero if $E$ is ENU) and $\cs{C}{r}_{\text{pres}}$ is the position of the pressure sensor in $C$-coordinates.\\
@@ -581,9 +581,9 @@ $$
 \purple{z_{\text{gps}}} = \blue{p} + \red{\epsilon_{\text{gps}}}
 $$
 
-Finally, the only sensor that isn't formally a sensor, the accelerometer. It doesn't measure a state! It measures the acceleration of the point it is fixed to relative to a local inertial frame, expressed along its own axes. That is indirectly related to the \textit{derivative} of twist.
+Finally, the only sensor that isn't formally a sensor, the accelerometer. It doesn't measure a state! It measures the \href{https://en.wikipedia.org/wiki/Proper_acceleration}{proper acceleration} of the point it is fixed to relative to a local inertial frame, expressed along its own axes. That is indirectly related to the \textit{derivative} of twist.
 $$
-\purple{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} \green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} + \red{\epsilon_{\text{acc}}}
+\purple{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} (\green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} - \cs{E}{g}(\blue{p})) + \red{\epsilon_{\text{acc}}}
 $$
 
 where,
@@ -638,8 +638,8 @@ $$
 
 $$
 f(\blue{x}) = \begin{bmatrix} 
-(m - \rho V)\blue{R}^{\tr}\cs{E}{g} - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)} - m(2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\
--\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g} - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) - \cs{C}{I}_c(\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega
+(m - \rho V)\blue{R}^{\tr}\cs{E}{g}(\blue{p}) - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)} - m(2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\
+-\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g}(\blue{p}) - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) - \cs{C}{I}_c(\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega
 \end{bmatrix}
 $$
 
@@ -647,7 +647,7 @@ $$
 
 \textbf{Pressure Transducer}
 $$
-\purple{z_{\text{pres}}} = \rho \cs{E}{g} \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
+\purple{z_{\text{pres}}} = \rho \cs{E}{g}(\blue{p}) \cdot (\cs{E}{r}_{\text{surf}} - \blue{p} - \blue{R}^{\tr}\cs{C}{r}_{\text{pres}}) + \red{\epsilon_{\text{pres}}}
 $$
 
 \myline
@@ -682,7 +682,7 @@ $$
 
 \textbf{Accelerometer}
 $$
-\purple{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} \green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} + \red{b_{\text{acc}}} + \red{\epsilon_{\text{acc}}},\ \ \ \ \dot{\red{b}}_{\text{\red{acc}}} = \red{\epsilon_{\text{acc\_bias}}}
+\purple{z_{\text{acc}}} = h_{\text{acc}}(\blue{x}, \dot{\blue{x}}, \red{\epsilon_{\text{acc}}}) = \cs{\text{acc}}{R}_C \blue{R}^{\tr} (\green{\cs{N}{R^{\black{\tr}}}_E} \orange{\cs{N}{\ddot{r}}_{\text{acc}}} - \cs{E}{g}(\blue{p})) + \red{b_{\text{acc}}} + \red{\epsilon_{\text{acc}}},\ \ \ \ \dot{\red{b}}_{\text{\red{acc}}} = \red{\epsilon_{\text{acc\_bias}}}
 $$
 
 where,
