@@ -24,7 +24,7 @@
 \usepackage{hyperref}
 
 % Page layout
-\geometry{top=1in,bottom=1in}
+\geometry{top=0.99in,bottom=1in}
 \hyphenpenalty = 10000
 \setlength\parindent{0pt}
 \setlength{\jot}{10pt}
@@ -513,13 +513,13 @@ M =
 $$
 
 $$
-f(\blue{x}) = \begin{bmatrix} 
+f(\blue{x}) = \begin{bmatrix}
 (m - \rho V)\blue{R}^{\tr}\cs{E}{g}(\blue{p}) - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)} - m(2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\
 -\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g}(\blue{p}) - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) - \cs{C}{I}_c(\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega
 \end{bmatrix}
 $$
 
-In this sleek form we see very clearly the following:
+The $f$ is a bit gnarly, so from here on out we will assume Earth's rotation is negligible to the dynamics for simplicity. Anyway, we now see very clearly that:
 \begin{enumerate}
   \item Our input $\red{u}$ is saturated / nonlinearly transformed by $\beta$ (which depends on thruster specs), and then linearly mapped by $B$ (which depends on thruster placement)
   \item The resulting wrench (which is a concatenation of force and torque) is met by the wrenches $f(\blue{x})$ and $\red{\delta}$; the former has a known structure (that is, we know what it depends on, like drag and wind) and the latter has an unknown structure but is hopefully usually zero
@@ -597,9 +597,11 @@ $$$$
 \orange{\cs{E}{\ddot{r}}_{\text{acc}}} = \blue{R}\Big{(}\dot{\blue{v}}\ +\ \dot{\blue{\omega}} \times \cs{C}{r}_{\text{acc}}\ +\ \blue{\omega} \times (\blue{v} + \blue{\omega} \times \cs{C}{r}_{\text{acc}})\Big{)}
 $$
 
-The reason why we shouldn't think of the accelerometer as a state sensor will be clear when we discuss Navigation. Lastly, the gyroscope and accelerometer are usually together on a single chip called an \href{https://www.youtube.com/watch?v=eqZgxR6eRjo}{inertial measurement unit} (IMU).
+The reason why we shouldn't think of the accelerometer as a state sensor will be clear when we discuss Navigation. Lastly, the gyroscope and accelerometer are usually together on a single chip called an \href{https://www.youtube.com/watch?v=eqZgxR6eRjo}{inertial measurement unit} (IMU).\\
 
-Now let's summarize our complete MIL-robot core model.\\
+Now let's summarize our complete MIL-robot core model.
+\clearpage
+
 \blue{Robot-state} | \green{Earth-state} | Constant / Operator | \red{Input / Disturbance / Noise} | \purple{Measurement}
 
 \myline
@@ -637,9 +639,9 @@ M =
 $$
 
 $$
-f(\blue{x}) = \begin{bmatrix} 
-(m - \rho V)\blue{R}^{\tr}\cs{E}{g}(\blue{p}) - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\Big{(}\cs{N}{\omega}_E \times \big{(}\cs{N}{\omega}_E \times (\green{\cs{N}{r}_e} + \green{\cs{N}{R}_E} \blue p)\big{)}\Big{)} - m(2\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \blue v \\
--\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g}(\blue{p}) - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) \times \cs{C}{I}_c (\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E + \blue \omega) - \cs{C}{I}_c(\blue{R}^{\tr}\green{\cs{N}{R}}^{\tr}_{\green{E}}\cs{N}{\omega}_E) \times \blue \omega
+f(\blue{x}) = \begin{bmatrix}
+(m - \rho V)\blue{R}^{\tr}\cs{E}{g}(\blue{p}) - D_p \blue{v} + \blue{R}^{\tr}\cs{E}{\mu} - m\blue \omega \times \blue v \\
+-\cs{C}{r}_{\text{v}} \times \rho V \blue{R}^{\tr}\cs{E}{g}(\blue{p}) - \cs{C}{r}_{\text{d}} \times D_p \blue{v} - D_q \blue{\omega} - \blue \omega \times \cs{C}{I}_c \blue \omega
 \end{bmatrix}
 $$
 

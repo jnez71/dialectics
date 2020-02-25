@@ -1,0 +1,78 @@
+% Plain and simple
+\documentclass{article}
+
+% Format and figure stuff
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[usenames, dvipsnames]{color}
+
+% Text stuff
+\usepackage{tikzsymbols}
+
+% Math stuff
+\usepackage{mathtools}
+\usepackage{mathrsfs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{cancel}
+\usepackage{xfrac}
+\usepackage{bm}
+
+% Code stuff
+\usepackage{listings}
+\usepackage{hyperref}
+
+% Page layout
+\geometry{top=1in,bottom=1in}
+\hyphenpenalty = 10000
+\setlength\parindent{0pt}
+\setlength{\jot}{10pt}
+
+% Hyperlink format
+\hypersetup{colorlinks=true,
+            linkcolor=blue,
+            filecolor=magenta,
+            urlcolor=blue}
+
+% Tab command
+\newcommand\tab[1][1cm]{\hspace*{#1}}
+
+% Line command
+\newcommand\myline{\noindent\makebox[\linewidth]{\rule{\paperwidth - 2in}{0.4pt}}}
+
+% Code font
+\def\code#1{\texttt{#1}}
+
+% Quick colors
+\definecolor{stateblue}{rgb}{0, 0, 0.75}
+\definecolor{darkgreen}{rgb}{0, 0.5, 0}
+\definecolor{orange}{RGB}{180, 60, 0}
+\definecolor{purple}{RGB}{200, 0, 200}
+\def\green#1{\textcolor{darkgreen}{#1}}
+\def\red#1{\textcolor{red}{#1}}
+\def\blue#1{\textcolor{stateblue}{#1}}
+\def\orange#1{\textcolor{orange}{#1}}
+\def\purple#1{\textcolor{purple}{#1}}
+\def\black#1{\textcolor{black}{#1}}
+
+% Coordinate system notation
+\def\cs#1#2%
+  {\mathop{}%
+   \mathopen{\vphantom{#2}}^{#1}%
+   \kern-\scriptspace%
+   #2}
+
+% Custom math symbols - linear algebra
+\DeclareMathOperator*{\tr}{\intercal}
+\DeclareMathOperator*{\zero}{\underline{0}}
+\DeclareMathOperator*{\eye}{\underline{1}}
+\newcommand\inv[1]{#1\raisebox{1.15ex}{$\scriptscriptstyle-\!1$}}
+\newcommand\pinv[1]{#1\raisebox{1.15ex}{$\scriptscriptstyle\dist\!1$}}
+
+% Custom math symbols - probability
+\DeclareMathOperator*{\E}{E}
+\DeclareMathOperator*{\cov}{cov}
+\DeclareMathOperator*{\dist}{\sim}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
