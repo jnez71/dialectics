@@ -1,4 +1,4 @@
-%%%% A clear derivation of the stochastic Bellman equation.
+%%%% A summary of basic Markov decision theory.
 
 \input{include/header.tex}
 
@@ -13,7 +13,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% BODY
 
-The purpose of this document is to provide a written, mathematically precise summary of Markov decision theory for reference. The focus is on axiomatic clarity rather than intuition. A good way to use this document is to try explaining each statement intuitively while verifying its consistency.
+The purpose of this document is to provide a written, mathematically precise summary of basic Markov decision theory for review. The focus is on axiomatic clarity rather than intuition. I encourage the reader to try explaining each statement intuitively while verifying its consistency.
 
 \vspace{0.2in}
 \hrule
@@ -58,21 +58,7 @@ where we are using the usual overloaded notation for marginal and conditional di
 p(x) = \int p(x,y)\,dy\ \ \ \text{and}\ \ \ p(x|y) = \frac{p(x,y)}{p(y)}
 \end{equation*}
 
-noting that $p(x|y)$ is a function of both $x$ and $y$ while $p(x)$ is a function of only $x$, but both $p(x|y)$ and $p(x)$ are valid probability distributions over $x$ (i.e. $p(x|y)\geq0\ \text{and}\ \int p(x|y)\,dx = 1$).\\
-
-The Markov factorization implies many strong conditional-independence statements. For example,
-\begin{equation*}
-p(s_{t+1}|s_t,a_t,s_{t-1},a_{t-1},r_{t-1},s_{t-2},a_{t-2},r_{t-2},\cdots) \stackrel{\text{markov}}{=} p(s_{t+1}|s_t,a_t)
-\end{equation*}
-
-These relationships can be depicted elegantly via a \href{https://en.wikipedia.org/wiki/Bayesian_network}{Bayesian graph} for the convenience random variables \ $\underline{s_t}(\omega) = s_t$, \ $\underline{a_t}(\omega) = a_t$, \ and \ $\underline{r_t}(\omega) = r_t$.
-\begin{center}
-  \includegraphics[width=\linewidth-1.5in]{include/bayesgraph.png}
-\end{center}
-
-This temporally ``chained'' structure models the idea that ``given the present, the future is independent of the past'' and constitutes the entirety of a ``Markov decision process'' (MDP).\\
-
-Mathematically, the Markov property allows us to completely define high-dimensional trajectory probabilities $p(\omega)$ by specifying just the following lower-dimensional distributions:
+Practically speaking, the Markov property allows us to completely define high-dimensional trajectory probabilities $p(\omega)$ by specifying just the following lower-dimensional distributions:
 \begin{itemize}
   \item The ``initial condition'' $p(s_0)$
   \item The ``\red{policies}'' $p(a_t|s_t)\ \forall t$
@@ -80,37 +66,63 @@ Mathematically, the Markov property allows us to completely define high-dimensio
   \item The ``\green{rewards}'' $p(r_{t+1}|s_t,a_t,s_{t+1})\ \forall t$
 \end{itemize}
 
-If, for example, the expression of $p(a_t|s_t)$ does not depend explicitly on the time index $t$, then we say there is just one ``policy'' (nonplural) and that it is ``time-invariant.'' It is often the case that all the above are time-invariant and so we really only have one unique policy, one unique dynamic, and one unique reward distribution that are just replicated $n$-times in the factorization of $p(\omega)$. Also, whenever a distribution's form is that of a Dirac-delta, we call it ``deterministic'' instead of ``stochastic.'' It is common for both the policies and rewards to be deterministic.\\
+If, for example, the expression of $p(a_t|s_t)$ does not depend explicitly on the time index $t$, then we say there is just one ``policy'' (nonplural) and that it is ``time-invariant.'' It is often the case that all of the above are time-invariant, and so we really only have one unique policy, one unique dynamic, and one unique reward distribution that are just replicated $n$-times in the factorization of $p(\omega)$.\\
 
-We now define the ``total (discounted) reward'' to be a random variable that assesses the goodness of a given sample of our MDP starting from time $t$ by summing up the rewards,
+Also, whenever a distribution's form is that of a Dirac-delta, we call it ``deterministic'' instead of ``stochastic.'' It is common for both the policies and rewards to be deterministic. In fact, the reward distribution is often deterministic, time-invariant, and even independent of $s_{t+1}$, meaning that it can be fully specified by a single function $\bar{r}:\mathbb{S}\times\mathbb{A} \to \mathbb{R}$ through,
 \begin{equation*}
-G_t(\omega) = \sum_{\tau=t}^{n-1} \gamma^{\tau-t} r_{\tau+1}
+p(r_{t+1}|s_t,a_t,s_{t+1}) \ \stackrel{\text{commonly}}{=} \ \delta\big{(}r_{t+1} - \bar{r}(s_t, a_t)\big{)}
 \end{equation*}
+
+Anyway, the Markov property implies many strong conditional independence statements. E.g.,
+\begin{equation*}
+p(s_{t+1}|s_t,a_t,s_{t-1},a_{t-1},r_{t-1},s_{t-2},a_{t-2},r_{t-2},\cdots) \stackrel{\text{markov}}{=} p(s_{t+1}|s_t,a_t)
+\end{equation*}
+
+These relationships can be depicted succinctly via a \href{https://en.wikipedia.org/wiki/Bayesian_network}{Bayesian graph} over the convenience random variables \ ${s_t}(\omega) = s_t$, \ ${a_t}(\omega) = a_t$, \ and \ ${r_t}(\omega) = r_t$.
+\begin{center}
+  \includegraphics[width=\linewidth-1.5in]{include/bayesgraph.png}
+\end{center}
+
+This temporally ``chained'' structure models the idea that ``given the present, the future is independent of the past'' and constitutes the entirety of a ``Markov decision process'' (MDP). Specifically, if we define the random variable $\omega_t$ to be the elements of a trajectory for times $\tau \geq t$ (``the future''),
+\begin{equation*}
+\omega_t = \{s_t, (a_t, s_{t+1}, r_{t+1}), (a_{t+1}, s_{t+2}, r_{t+2}), \cdots, (a_{n-1}, s_{n}, r_n)\} \ \in \ \Omega_t = \mathbb{S}^{n-t+1} \times \mathbb{A}^{n-t} \times \mathbb{R}^{n-t}
+\end{equation*}
+
+we see from the Bayesian graph that $\omega_t$ is disconnected from ``the past'' by conditioning on $s_t$,
+\begin{equation*}
+p(\omega_t|s_t) = \cancel{\frac{p(s_t)}{p(s_t)}}\prod_{\tau=t}^{n-1} p(a_\tau|s_\tau)p(s_{\tau+1}|s_\tau,a_\tau)p(r_{\tau+1}|s_\tau,a_\tau,s_{\tau+1})
+\end{equation*}
+
+We now define the ``total (discounted) reward from $t$'' to be a random variable that assesses the goodness of a sample of our MDP starting from time $t$ by summing up the remaining rewards,
+\begin{align*}
+G_t(\omega_t) &= r_{t+1} + \gamma r_{t+2} + \gamma^2 r_{t+3} + \cdots + \gamma^{n-t-1} r_n\\
+&= \sum_{\tau=t}^{n-1} \gamma^{\tau-t} r_{\tau+1}
+\end{align*}
 
 where $\gamma \in [0,1]$ is called the ``discount factor,'' used both to enforce the convergence of this sum (if $n \to \infty$) and to express that future rewards are less valuable than sooner rewards.\\
 
-The MDP elicits an optimization problem: we want to choose the best possible policy distribution $p(a_t|s_t)$. To clarify, the ``decision'' in ``Markov decision process'' is really deciding the distribution from which actions will be sampled (the policy). If the policy is deterministic and time-invariant, then it is defined by a basic mapping from states to actions that is interpreted classically as a decision-making rule. If the policy depends only on time (ignoring the actual value of $s_t$) we call it ``open-loop'' or a ``plan,'' while if it depends on $s_t$ in any way we call it ``closed-loop.''\\
+Total reward provokes an optimization problem: we want to choose the best possible policy distribution $p(a_t|s_t)$. To clarify, the ``decision'' in ``Markov decision process'' is really deciding the distribution from which actions will be sampled (the policy). If the policy depends only on time (ignoring the actual value of $s_t$) we call it ``open-loop'' or a ``plan,'' while if it depends on $s_t$ in any way we call it ``closed-loop.'' If the policy is deterministic and time-invariant, then it can be fully specified by a single function $\mathbb{S} \mapsto \mathbb{A}$ that is interpreted classically as a decision-making rule.\\
 
-We will denote our choice as $\pi(a_t|s_t)$, and to emphasize that we have plugged-in our choice, we will use $\pi$ as a subscript. For example,
+We will denote our choice as $\pi(a_t|s_t)$, and to emphasize that we have plugged-in our choice, we will use $\pi$ as a subscript on probability densities and statistics. For example,
 \begin{equation*}
 p_{\orange{\pi}}(\omega) = p(s_0) \prod_{t=0}^{n-1} \orange{\pi(a_t|s_t)}p(s_{t+1}|s_t,a_t)p(r_{t+1}|s_t,a_t,s_{t+1})
 \end{equation*}
 
-But what does ``best'' mean with respect to a random variable like $G_t$? We choose to optimize a statistic of $G_t$. Namely, a conditional expectation we'll call the ``value function,''
+But what does ``best'' mean with respect to a random variable like $G_t$? We choose to optimize a statistic of $G_t$. Namely, a conditional expectation called the ``value function,''
 \begin{align*}
 V_\pi(s_t) &= E_\pi(G_t | s_t)\\
-&= \int_\Omega G_t(\omega) p_\pi(\omega|s_t)\,d\omega\\
-&= \int_\Omega G_t(\omega) \cancel{\frac{p(s_t)}{p(s_t)}}\prod_{\tau=t}^{n-1} \Big{(}\pi(a_\tau|s_\tau)p(s_{\tau+1}|s_\tau,a_\tau)p(r_{\tau+1}|s_\tau,a_\tau,s_{\tau+1})\Big{)} \,d\omega
+&= \int_{\Omega_t} G_t(\omega_t) p_\pi(\omega_t|s_t)\,d\omega_t\\
+&= \int_{\Omega_t} \sum_{\tau=t}^{n-1} \Big{(}\gamma^{\tau-t} r_{\tau+1}\Big{)} \prod_{\tau=t}^{n-1} \Big{(}\pi(a_\tau|s_\tau)p(s_{\tau+1}|s_\tau,a_\tau)p(r_{\tau+1}|s_\tau,a_\tau,s_{\tau+1})\Big{)} \,d\omega_t
 \end{align*}
 
-The objective is to find the optimal policy $\pi^*$ that satisfies,
+I.e., $V_\pi(s_t)$ is the expected total reward acquired for starting from state $s$ at time $t$ and acting according to policy $\pi$. Our objective then is to find the optimal policy $\pi^*$ that satisfies,
 \begin{equation*}
 V_{\pi^*}(s_t) \geq V_{\pi}(s_t)\ \forall s_t
 \end{equation*}
 
-\vspace{0.2in}
+The existence of such a $\pi^*$ is guaranteed by Bellman's Principle\ldots
 
-- Policy gradient (analytical derivative, trajectory monte carlo)\\
+\vspace{0.3in}
 
 - Bellman equation (derive recursion, dynamic programming principle, robber problem example, LQR example)\\
 
@@ -118,7 +130,9 @@ V_{\pi^*}(s_t) \geq V_{\pi}(s_t)\ \forall s_t
 
 - Q-learning (k-step value functions, transition monte carlo, example with same small S)\\
 
-- Approximation (linear basis, deep nets, experience replay, |S| vs smoothness of V, example with large S)
+- Approximation (linear basis, deep nets, experience replay, $|S|$ vs $V$ smoothness, example with large S)\\
+
+- Policy gradient (analytical derivative, trajectory monte carlo)\\
 
 - Further topics (POMDP / HMM, game theory / multiagent)
 
