@@ -13,7 +13,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% BODY
 
-The purpose of this document is to provide a written, mathematically precise summary of basic Markov decision theory for review. The focus is on axiomatic clarity rather than intuition. I encourage the reader to try explaining each statement intuitively while verifying its consistency.
+The purpose of this document is to provide a succinct, mathematically precise summary of basic Markov decision theory for review. The focus is on axiomatic clarity rather than intuition. I encourage the reader to try explaining each statement intuitively while verifying its consistency.
 
 \vspace{0.2in}
 \hrule
@@ -66,11 +66,11 @@ Practically speaking, the Markov property allows us to completely define high-di
   \item The ``\green{rewards}'' $p(r_{t+1}|s_t,a_t,s_{t+1})\ \forall t$
 \end{itemize}
 
-If, for example, the expression of $p(a_t|s_t)$ does not depend explicitly on the time index $t$, then we say there is just one ``policy'' (nonplural) and that it is ``time-invariant.'' It is often the case that all of the above are time-invariant, and so we really only have one unique policy, one unique dynamic, and one unique reward distribution that are just replicated $n$-times in the factorization of $p(\omega)$.\\
+If, for example, the expression of $p(a_t|s_t)$ does not depend explicitly on the time index $t$, then we say there is just one ``policy'' (nonplural) and that it is ``time invariant.'' It is often the case that all of the above are time invariant, and so we really only have one unique policy, one unique dynamic, and one unique reward distribution that are just replicated $n$-times in the factorization of $p(\omega)$.\\
 
-Also, whenever a distribution's form is that of a Dirac/Kronecker-delta, we call it ``deterministic'' instead of ``stochastic.'' It is common for both the policies and rewards to be deterministic. In fact, the reward distribution is often deterministic, time-invariant, and even independent of $s_{t+1}$, meaning that it can be fully specified by a single function $\bar{r}:\mathbb{S}\times\mathbb{A} \to \mathbb{R}$ through,
+Also, whenever a distribution's form is that of a Dirac/Kronecker-delta, we call it ``deterministic'' instead of ``stochastic.'' It is common for both the policies and rewards to be deterministic. In fact, the reward distribution is often deterministic, time invariant, and even independent of $s_{t+1}$, meaning that it can be fully specified by a single function $\bar{r}:\mathbb{S}\times\mathbb{A} \to \mathbb{R}$ through,
 \begin{equation*}
-p(r_{t+1}|s_t,a_t,s_{t+1}) = \delta\big{(}r_{t+1} - \bar{r}(s_t, a_t)\big{)} \tag{common}
+p(r_{t+1}|s_t,a_t,s_{t+1}) = \delta\big{(}r_{t+1} - \bar{r}(s_t, a_t)\big{)} \small{\tag{deterministic reward}}
 \end{equation*}
 
 Anyway, the Markov property implies many strong conditional independence statements. E.g.,
@@ -101,14 +101,14 @@ G_t(\omega_t) &\coloneqq r_{t+1} + \gamma r_{t+2} + \gamma^2 r_{t+3} + \cdots + 
 
 where $\gamma \in [0,1]$ is called the ``discount factor,'' used both to enforce the convergence of this sum (if $n \to \infty$) and to express that future rewards are less valuable than sooner rewards.\\
 
-Total reward provokes an optimization problem: we want to choose the best possible policy distribution $p(a_t|s_t)$. To clarify, the ``decision'' in ``Markov decision process'' is really deciding the distribution from which actions will be sampled (the policy). If the policy depends only on time (ignoring the actual value of $s_t$) we call it ``open-loop'' or a ``plan,'' while if it depends on $s_t$ in any way we call it ``closed-loop.'' If the policy is deterministic and time-invariant, then it can be fully specified by a single function $\mathbb{S} \mapsto \mathbb{A}$ that is interpreted classically as a decision-making rule.\\
+Total reward provokes an optimization problem: we want to choose the best possible policy distribution $p(a_t|s_t)$. To clarify, the ``decision'' in ``Markov decision process'' is really deciding the distribution from which actions will be sampled (the policy). If the policy depends only on time (ignoring the actual value of $s_t$) we call it ``open-loop'' or a ``plan,'' while if it depends on $s_t$ in any way we call it ``closed-loop.'' If the policy is deterministic and time invariant, then it can be fully specified by a single function $\mathbb{S} \mapsto \mathbb{A}$ that is interpreted classically as a decision-making rule.\\
 
 We will denote our choice as $\pi(a_t|s_t)$, and to emphasize that we have plugged-in our choice, we will use $\pi$ as a subscript on probability densities and statistics. For example,
 \begin{equation*}
 p_{\orange{\pi}}(\omega) \coloneqq p(\omega)\Big{|}_{p(a_t|s_t) = \orange{\pi(a_t|s_t)}} = p(s_0) \prod_{t=0}^{n-1} \orange{\pi(a_t|s_t)}p(s_{t+1}|s_t,a_t)p(r_{t+1}|s_t,a_t,s_{t+1})
 \end{equation*}
 
-But what does ``best'' mean with respect to a random variable like $G_t$? We choose to optimize a statistic of $G_t$. Namely, a conditional expectation called the ``value-function,''
+But what does ``best'' mean with respect to a random variable like $G_t$? We choose to optimize a statistic of $G_t$. Namely, a conditional expectation called the ``value function,''
 \begin{align*}
 V_\pi(s_t) &\coloneqq E_\pi(G_t | s_t)\\
 &= \int_{\Omega_t} G_t(\omega_t) p_\pi(\omega_t|s_t)\,d\omega_t\\
@@ -125,7 +125,7 @@ There is a necessary and sufficient condition for $\pi^*$ known as the ``dynamic
 ``An optimal policy has the property that, whatever the initial state and initial action are, the remaining actions must constitute an optimal policy with regard to the state resulting from the first action.'' (Bellman, 1957, Chapter III.3)
 \end{quote}
 
-This follows directly from the Markov property: given that the process is now in state $s_{t+1}$, the future of the process is independent of how it got there (i.e. the transition from $s_t$ using $a_t$). Therefore, if we can predict the optimal outcome from any $s_{t+1}$, we can determine $\pi^*(a_t|s_t)$ by optimizing just the expected immediate reward plus our prediction for the states we might transition to (discounted by $\gamma$ since it's future reward). Said mathematically,
+This follows directly from the Markov property: given that the process is now in state $s_{t+1}$, the future of the process is independent of how it got there (i.e. the transition from $s_t$ using $a_t$). Therefore, if we can predict the optimal outcome from any $s_{t+1}$, then we can determine $\pi^*(a_t|s_t)$ by optimizing just the expected immediate reward plus our prediction for the optimal outcome from the states we might transition to (discounted by $\gamma$ since it's future reward). Said mathematically,
 \begin{gather*}
 \pi^*(a_t|s_t) = \delta\big{(}a_t\ ;\ \bar{\pi}^*(s_t)\big{)}\\
 \bar{\pi}^*(s_t) = \argmax_{a_t} E\big{(}r_{t+1} + \gamma V_{\pi^*}(s_{t+1}) | s_t, a_t\big{)}
@@ -143,7 +143,7 @@ E(\alpha x + \beta y) &= \alpha E(x) + \beta E(y)\\
 E(x | z) &= E\big{(}E(x | y, z) | z\big{)}
 \end{align*}
 
-It follows that any value-function also satisfies a recursion,
+It follows that any value function also satisfies a recursion,
 \begin{align*}
 V_\pi(s_t) &= E_\pi(r_{t+1} + \gamma G_{t+1} | s_t)\\
 &= E_\pi(r_{t+1}|s_t) + \gamma E_\pi(G_{t+1} | s_t)\\
@@ -157,21 +157,21 @@ And, since there is no more reward to be collected after time $n$, we have a bou
 V_{\pi}(s_n) = 0
 \end{equation*}
 
-Combining this recursion with the dynamic programming principle, we have the ``Bellman equation'':
+Plugging-in the dynamic programming principle's $\pi^*$, we arrive at the ``Bellman equation'':
 \begin{equation*}
 V^*(s_t) = \max_{a_t} E\big{(}r_{t+1} + \gamma V^*(s_{t+1}) | s_t, a_t\big{)}
 \end{equation*}
 
-with the shorthand $V^* \coloneqq V_{\pi^*}$. If we can solve the Bellman equation for $V^*$, then, as we saw before, $\pi^*$ can be constructed as the deterministic policy that always selects the $\argmax$ of the right-hand-side. Thus, a solution to the Bellman equation constitutes a solution to our MDP.\\
+with the shorthand $V^* \coloneqq V_{\pi^*}$. If we can solve the Bellman equation for $V^*$, then $\pi^*$ can be indirectly reconstructed as the deterministic policy that always selects the $\argmax$ of the right-hand-side. Thus, a solution $V^*$ to the Bellman equation constitutes a solution to our MDP.\\
 
-It is worth noting that the general value-function recursion is useful for more than just deriving the Bellman equation. It lets us compute the value-function associated with any policy, which can be useful when comparing candidate policies if the Bellman equation is too difficult to solve directly. The general value-function recursion doesn't involve the difficult maximization present in the Bellman equation and is even linear in the unknown $V_\pi$.\\
+It is worth noting that the general value function recursion is useful for more than just deriving the Bellman equation. It lets us compute the value function associated with any policy, which can be useful when comparing candidate policies if the Bellman equation is too difficult to solve directly. The general value function recursion doesn't involve the difficult maximization present in the Bellman equation and is even linear in the unknown $V_\pi$.\\
 
 The expectations in these equations pack away a lot of computation, though they're not as intense as the expectation in the direct expression of $E_\pi(G_t|s_t)$, because the arguments of these expectations depend only on a single transition, not a whole trajectory, so we only need,
 \begin{equation*}
 p_\pi(a_t, s_{t+1}, r_{t+1}|s_t) = \orange{\pi(a_t|s_t)} \blue{p(s_{t+1}|s_t,a_t)} \green{p(r_{t+1}|s_t,a_t,s_{t+1})}
 \end{equation*}
 
-to express the general value-function recursion as,
+to express the general value function recursion as,
 \begin{align*}
 V_\pi(s_t) &= E_\pi\big{(}r_{t+1} + \gamma V_{\pi}(s_{t+1}) | s_t\big{)}\\
 &= \orange{\int_{\mathbb{A}} \pi(a_t|s_t) \blue{\int_{\mathbb{S}} p(s_{t+1}|s_t,a_t) \Big{(}\green{\int_{\mathbb{R}}p(r_{t+1}|s_t,a_t,s_{t+1}) r_{t+1} \,dr_{t+1}} + \gamma V_{\pi}(s_{t+1}) \Big{)}\,ds_{t+1}}\,da_t}
@@ -185,31 +185,63 @@ V^*(s_t) &= \max_{a_t} E\big{(}r_{t+1} + \gamma V^*(s_{t+1}) | s_t, a_t\big{)}\\
 
 This is the most general case for a (vanilla) MDP, but there are many very common situations that simplify things. For example, if the reward is deterministic and independent of $s_{t+1}$, it can be pulled out of the $\mathbb{R}$ and $\mathbb{S}$ integrations to write the Bellman equation as,
 \begin{equation*}
-V^*(s_t) = \max_{a_t} \big{(} \bar{r}(s_t, a_t) + \gamma T_{a_t} V^*(s_t) \big{)} \tag{common}
+V^*(s_t) = \max_{a_t} \big{(} \bar{r}(s_t, a_t) + \gamma \mathcal{T}_{a_t} V^*(s_t) \big{)} \small{\tag{deterministic reward}}
 \end{equation*}
 
 with the linear ``transition operator'' defined as,
 \begin{align*}
-T_{a_t} f(s_t) &\coloneqq E\big{(}f(s_{t+1})|s_t,a_t\big{)}\ \ \ \ \forall f : \mathbb{S} \times \mathbb{T} \to \mathbb{R}\\
+\mathcal{T}_{a_t} f(s_t) &\coloneqq E\big{(}f(s_{t+1})|s_t,a_t\big{)}\ \ \ \ \forall f : \mathbb{S} \times \mathbb{T} \to \mathbb{R}\\
 &= \int_{\mathbb{S}}p(s_{t+1}|s_t,a_t)f(s_{t+1})\,ds_{t+1}
 \end{align*}
 
-Furthermore, if the MDP is time-invariant, infinite-horizon, and has finite state and action spaces, the above reduces to the form that is often presented first in introductory texts,
+Furthermore, if the MDP is time invariant, infinite horizon, and has finite state and action spaces, the above reduces to the form that is often presented first in introductory texts,
 \begin{equation*}
-V^*(s) = \max_{a} \Big{(} \bar{r}(s, a) + \gamma \sum_{s' \in \mathbb{S}} p(s'|s,a) V^*(s') \Big{)} \tag{common}
+V^*(s) = \max_{a} \Big{(} \bar{r}(s, a) + \gamma \sum_{s' \in \mathbb{S}} p(s'|s,a) V^*(s') \Big{)} \small{\tag{deterministic reward, time invariant, finite}}
 \end{equation*}
 
-which can be readily implemented as matrix operations on the value-function as a single finite vector. It is also worth noting that if the dynamics are deterministic, the sum on the right reduces to a simple evaluation of $V^*$ at the state $s'$ deterministically transitioned to under action $a$.
+which can be readily implemented as matrix operations on the value function as a single finite vector. It is also worth noting that if the dynamics are deterministic, the sum on the right reduces to a simple evaluation of $V^*$ at the state $s'$ deterministically transitioned to from $s$ using $a$,
+\begin{equation*}
+V^*(s) = \max_{a} \Big{(} \bar{r}(s, a) + \gamma V^*\big{(}\bar{s}'(s, a)\big{)} \Big{)} \small{\tag{fully deterministic, time invariant, finite}}
+\end{equation*}
+
+In general, the Bellman equation is just a fixed-point equation for the nonlinear ``Bellman operator,''
+\begin{gather*}
+V^*(s_t) = \mathcal{B}V^*(s_t)\\
+\mathcal{B} f(s_t) \coloneqq \max_{a_t} E\big{(}r_{t+1} + \gamma f(s_{t+1}) | s_t, a_t\big{)}\ \ \ \ \forall f : \mathbb{S} \times \mathbb{T} \to \mathbb{R}
+\end{gather*}
+
+It can be shown that \href{https://people.eecs.berkeley.edu/~ananth/223Spr07/ee223_spr07_lec19.pdf}{the Bellman operator is a contraction mapping}. Thus a variety of fixed-point-iteration-type algorithms can be used to numerically solve the Bellman equation with guaranteed convergence. In ``value iteration,'' the value of $\mathcal{B}\hat{V}^*(s_t)$ is simply used as the next iterate for $\hat{V}^*(s_t)$.
+\begin{align*}
+&\forall s_t \in {\mathbb{S} \times \mathbb{T}}\ :\\
+&\text{Guess}\ \ \hat{V}^*_0(s_t)\\
+&\text{Recurse for $i \in \mathbb{N}$\ :}\ \ \ \hat{V}^*_{i+1}(s_t) = \mathcal{B}\hat{V}^*_i(s_t)
+\end{align*}
+
+In ``policy iteration,'' the argument of optimization within $\mathcal{B}\hat{V}^*(s_t)$ is used as the next iterate for $\hat{\bar{\pi}}^*(s_t)$, and $\hat{V}^*(s_t)$ is set to the solution of the general value function recursion for $\hat{\bar{\pi}}^*(s_t)$ (a linear subproblem). Many more methods can be conjured-up when just viewing $V^*$ as an $|\mathbb{S}||\mathbb{T}|$-dimensional vector and the Bellman equation as a nonlinear root-finding problem, albeit containing some integrals and a maximization over $\mathbb{A}$. (Of course, $|\mathbb{S}||\mathbb{T}|$ optimizations over $\mathbb{A}$ is still substantially less computation than an optimization over $\Omega$).\\
+
+For any method, despite guaranteed convergence, the convergence rate and accuracy of the solution depends on its representation. If the value function is stored entirely (one value for every $s_t$), then the solution will be exact, but this can be intractable for very large state spaces. Furthermore, a maximization over the action space can also be intractable for very large action spaces.\\
+
+Large state and/or action spaces are handled by approximating the solution ($V^*$ and/or $\pi^*$) with finitely parameterized function approximators. If the true solution is very smooth and/or periodic, then very few parameters will be needed to exactly capture its behavior. Thus the difficulty in solving an MDP is not really about how large the state and action spaces are, but rather about how regular the unknown true $V^*$ is. For example, the well-studied ``linear-quadratic-Gaussian'' (LQG) class of problems has infinite cardinality state and action vector spaces, but the structure of $V^*$ turns out to be a quadratic form, and is thus quick and easy to solve for exactly.\\
+
+Suppose a real-valued function $\eta(s_t;\theta)$ parameterized by $\theta \in \mathbb{R}^m$ is used to represent our estimate of the optimal value function $\hat{V}^*(s_t)$. We need a mechanism for updating $\theta$ when a new value of $\hat{V}^*(s_t)$ is decided on by value iteration or the like. The most common method is gradient descent on a quadratic error that measures the deviation of the representation from its target value $y$,
+\begin{align*}
+\theta_{i+1} &= \theta_i - \alpha \nabla_{\theta}\Big{(}\dfrac{1}{2}\big{(}y - \eta(s_t;\theta_i)\big{)}^2\Big{)}\\
+&= \theta_i + \alpha \big{(}y - \eta(s_t;\theta_i)\big{)}\nabla_{\theta}\eta(s_t;\theta_i)
+\end{align*}
+
+Using value iteration, the target is simply $y = \mathcal{B}\eta(s_t;\theta_i)$. The fact that the target itself depends on $\theta_i$ is sometimes called the ``moving target'' issue and is what makes ``training'' an approximate solution to the Bellman equation more difficult than typical supervised learning. The various regions of the state space have to ``fight'' for the attention of the relatively small set of parameters, but at the same time they aren't even sure of exactly what they want. Nonetheless, this works in practice.\\
+
+Up to this point, we have assumed that the constituent probabilities of our MDP (the dynamic and reward distributions) were known functions, so that we can compute the necessary expectations. Unfortunately, this is not always the case. In many applications, these probabilities are only known by the ``environment'' (or perhaps a ``simulator'') that can return sample transitions. Specifically, we can query the environment with a particular state and action and it will return a sample next-state and reward from the distribution $p(s_{t+1}, r_{t+1}|s_t,a_t)$. When this is the case, we enter the realm of ``reinforcement learning'' (RL) because we will have to learn the MDP solution by trial-and-error with the actual environment.\\
+
+There are two distinct approaches to the RL problem: ``model-based'' and ``model-free.'' In model-based RL, the environment is queried to collect data for forming an approximation of the underlying dynamic and reward distributions. Then, that approximation is solved using techniques (like the ones covered so far) that assume a known model. In contrast, model-free RL uses the environment directly to compute monte-carlo estimates of the expectations in the Bellman equation. To avoid delving into time-series machine learning and because it is a bit simpler, we'll cover model-free.\\
+
+If we sample a bunch of transitions
 
 \vspace{5ex}\hrule\vspace{2ex}
 
-Next up:\\
-- Using the Bellman equation directly (2d stochastic robber problem example, LQR example)\\
-- Value iteration (contraction mapping, fixed-point iteration, small S example, markov diagrams)\\
-- Q-learning (k-step value-functions, transition monte carlo, same small S example)\\
-- Approximation (linear basis, deep nets, experience replay, S vs V smoothness, large S example)\\
-- Policy gradient (analytical derivative, trajectory monte carlo)\\
-- Allude further topics (POMDP / HMM, game theory / multiagent)
+\textbf{Explain monte-carlo, k-step value functions, policy gradient}\\
+
+\textbf{Allude further topics: POMDP / HMM, game theory / multiagent}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
