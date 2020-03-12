@@ -13,7 +13,7 @@
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% BODY
 
-The purpose of this document is to provide a succinct, mathematically precise summary of basic Markov decision theory for review. The focus is on axiomatic clarity rather than intuition. I encourage the reader to try explaining each statement intuitively while verifying its consistency.
+The purpose of this document is to provide a succinct, mathematically precise summary of basic Markov decision theory for review. The focus is on axiomatic clarity rather than intuition. The reader should already have a good understanding of probability theory and basic machine learning.
 
 \vspace{0.2in}
 \hrule
@@ -162,9 +162,9 @@ Plugging-in the dynamic programming principle's $\pi^*$, we arrive at the ``Bell
 V^*(s_t) = \max_{a_t} E\big{(}r_{t+1} + \gamma V^*(s_{t+1}) | s_t, a_t\big{)}
 \end{equation*}
 
-with the shorthand $V^* \coloneqq V_{\pi^*}$. If we can solve the Bellman equation for $V^*$, then $\pi^*$ can be indirectly reconstructed as the deterministic policy that always selects the $\argmax$ of the right-hand-side. Thus, a solution $V^*$ to the Bellman equation constitutes a solution to our MDP.\\
+with the shorthand $V^* \coloneqq V_{\pi^*}$. If we can solve the Bellman equation for $V^*$, then $\pi^*$ can be reconstructed as the deterministic policy that always selects the $\argmax$ of the right-hand-side. Thus, a solution $V^*$ to the Bellman equation constitutes a solution to our MDP.\\
 
-It is worth noting that the general value function recursion is useful for more than just deriving the Bellman equation. It lets us compute the value function associated with any policy, which can be useful when comparing candidate policies if the Bellman equation is too difficult to solve directly. The general value function recursion doesn't involve the difficult maximization present in the Bellman equation and is even linear in the unknown $V_\pi$.\\
+It is worth noting that the general value function recursion is useful for more than just deriving the Bellman equation. It lets us compute the value function associated with any policy, which can be useful when comparing candidate policies if the Bellman equation is too difficult to solve directly. The general value function recursion doesn't involve the difficult maximization present in the Bellman equation and is thus linear in the unknown $V_\pi$.\\
 
 The expectations in these equations pack away a lot of computation, though they're not as intense as the expectation in the direct expression of $E_\pi(G_t|s_t)$, because the arguments of these expectations depend only on a single transition, not a whole trajectory, so we only need,
 \begin{equation*}
@@ -217,31 +217,83 @@ It can be shown that \href{https://people.eecs.berkeley.edu/~ananth/223Spr07/ee2
 &\text{Recurse for $i \in \mathbb{N}$\ :}\ \ \ \hat{V}^*_{i+1}(s_t) = \mathcal{B}\hat{V}^*_i(s_t)
 \end{align*}
 
-In ``policy iteration,'' the argument of optimization within $\mathcal{B}\hat{V}^*(s_t)$ is used as the next iterate for $\hat{\bar{\pi}}^*(s_t)$, and $\hat{V}^*(s_t)$ is set to the solution of the general value function recursion for $\hat{\bar{\pi}}^*(s_t)$ (a linear subproblem). Many more methods can be conjured-up when just viewing $V^*$ as an $|\mathbb{S}||\mathbb{T}|$-dimensional vector and the Bellman equation as a nonlinear root-finding problem, albeit containing some integrals and a maximization over $\mathbb{A}$. (Of course, $|\mathbb{S}||\mathbb{T}|$ optimizations over $\mathbb{A}$ is still substantially less computation than an optimization over $\Omega$).\\
+In ``policy iteration,'' the argument of optimization within $\mathcal{B}\hat{V}^*(s_t)$ is used as the next iterate for $\hat{\bar{\pi}}^*(s_t)$, and $\hat{V}^*(s_t)$ is set to the solution of the general value function recursion for $\hat{\bar{\pi}}^*(s_t)$ (a linear subproblem). Many more methods can be conjured-up when just viewing $V^*$ as an $|\mathbb{S}||\mathbb{T}|$-dimensional vector and the Bellman equation as a nonlinear root-finding problem, albeit containing some integrals and a maximization over $\mathbb{A}$ per iteration.\\
 
-For any method, despite guaranteed convergence, the convergence rate and accuracy of the solution depends on its representation. If the value function is stored entirely (one value for every $s_t$), then the solution will be exact, but this can be intractable for very large state spaces. Furthermore, a maximization over the action space can also be intractable for very large action spaces.\\
+The time-complexity is dominated by the number of possible transitions, $|\mathbb{S}||\mathbb{A}||\mathbb{S}'||\mathbb{T}|$, substantially less than the number of possible trajectories $|\Omega|$. The reason for the prime on the second $\mathbb{S}$ is because the set of states it is possible to transition to from a given state and action is often sparse so that $|\mathbb{S}'| \leq |\mathbb{S}|$. For example, if the MDP is deterministic, $|\mathbb{S}'|$ is $1$. Lastly, if the MDP is time invariant, the $|\mathbb{T}|$ can be dropped because the solution for one $t$ will be the same as for any other $t$.\\
 
-Large state and/or action spaces are handled by approximating the solution ($V^*$ and/or $\pi^*$) with finitely parameterized function approximators. If the true solution is very smooth and/or periodic, then very few parameters will be needed to exactly capture its behavior. Thus the difficulty in solving an MDP is not really about how large the state and action spaces are, but rather about how regular the unknown true $V^*$ is. For example, the well-studied ``linear-quadratic-Gaussian'' (LQG) class of problems has infinite cardinality state and action vector spaces, but the structure of $V^*$ turns out to be a quadratic form, and is thus quick and easy to solve for exactly.\\
+For any method, despite convergence, the accuracy of the solution depends on its representation. If the value function is stored entirely (one value for every $s_t$), then the solution will be exact, but this can be intractable for very large state spaces. Furthermore, maximization over the action space can also be intractable for very large action spaces.\\
 
-Suppose a real-valued function $\eta(s_t;\theta)$ parameterized by $\theta \in \mathbb{R}^m$ is used to represent our estimate of the optimal value function $\hat{V}^*(s_t)$. We need a mechanism for updating $\theta$ when a new value of $\hat{V}^*(s_t)$ is decided on by value iteration or the like. The most common method is gradient descent on a quadratic error that measures the deviation of the representation from its target value $y$,
+Large state and/or action spaces are handled by approximating the solution ($V^*$ and/or $\pi^*$) with finitely parameterized function approximators. If the true solution is very smooth or periodic, then few parameters will be needed to exactly capture its behavior. Thus the difficulty in solving an MDP is not really about how large the state and action spaces are, but rather about how regular the underlying $V^*$ is. For example, the well-studied ``linear-quadratic-Gaussian'' (LQG) class of problems has infinite cardinality state and action vector spaces, but the structure of $V^*$ turns out to be a quadratic form and is thus easy to express and solve for exactly.\\
+
+Suppose a real-valued function $\eta(s_t;\theta)$ parameterized by $\theta \in \mathbb{R}^m$ is used to represent our estimate of the optimal value function $\hat{V}^*(s_t)$. We need a mechanism for updating $\theta$ when a new value of $\hat{V}^*(s_t)$ is decided on by value iteration or the like. The most common method is gradient descent on a quadratic error that measures the deviation of the representation from its target value $y \in \mathbb{R}$,
 \begin{align*}
-\theta_{i+1} &= \theta_i - \alpha \nabla_{\theta}\Big{(}\dfrac{1}{2}\big{(}y - \eta(s_t;\theta_i)\big{)}^2\Big{)}\\
-&= \theta_i + \alpha \big{(}y - \eta(s_t;\theta_i)\big{)}\nabla_{\theta}\eta(s_t;\theta_i)
+\theta_{i+1} &= \theta_i - \alpha \nabla_{\theta}\Big{(}\dfrac{1}{2}\big{(}y - \eta(s_t;\theta)\big{)}^2\Big{)}\big{|}_{\theta=\theta_i}\\
+&= \theta_i + \alpha \big{(}y - \eta(s_t;\theta_i)\big{)}\nabla_{\theta}\eta(s_t;\theta_i)%\big{|}_{\theta=\theta_i}
 \end{align*}
 
-Using value iteration, the target is simply $y = \mathcal{B}\eta(s_t;\theta_i)$. The fact that the target itself depends on $\theta_i$ is sometimes called the ``moving target'' issue and is what makes ``training'' an approximate solution to the Bellman equation more difficult than typical supervised learning. The various regions of the state space have to ``fight'' for the attention of the relatively small set of parameters, but at the same time they aren't even sure of exactly what they want. Nonetheless, this works in practice.\\
+Using value iteration, the target is simply $y = \mathcal{B}\eta(s_t;\theta_i)$. The fact that the target itself depends on $\theta_i$ is sometimes called the ``moving target'' issue and is what makes ``training'' an approximate solution to the Bellman equation more difficult than supervised learning. The various regions of the state space have to fight for the attention of the relatively small set of parameters, but at the same time they aren't even sure of exactly what they want. Nonetheless, this converges in practice.\\
 
-Up to this point, we have assumed that the constituent probabilities of our MDP (the dynamic and reward distributions) were known functions, so that we can compute the necessary expectations. Unfortunately, this is not always the case. In many applications, these probabilities are only known by the ``environment'' (or perhaps a ``simulator'') that can return sample transitions. Specifically, we can query the environment with a particular state and action and it will return a sample next-state and reward from the distribution $p(s_{t+1}, r_{t+1}|s_t,a_t)$. When this is the case, we enter the realm of ``reinforcement learning'' (RL) because we will have to learn the MDP solution by trial-and-error with the actual environment.\\
+Up to this point, we have assumed that the ``model'' probabilities of our MDP (the dynamic and reward distributions) were known functions, so that we can compute the necessary expectations. Unfortunately, this is not always the case. In many applications, these probabilities are only known by the ``environment'' (or perhaps a ``simulator'') that can return sample transitions. Specifically, we can query the environment with a particular state and action and it will return a sample next-state and reward from the distribution $p(s_{t+1}, r_{t+1}|s_t,a_t)$. When this is the case, we enter the realm of ``reinforcement learning'' (RL) because we will have to learn the MDP solution by trial-and-error with the actual environment. In RL we may refer to ourselves as the ``agent.''\\
 
-There are two distinct approaches to the RL problem: ``model-based'' and ``model-free.'' In model-based RL, the environment is queried to collect data for forming an approximation of the underlying dynamic and reward distributions. Then, that approximation is solved using techniques (like the ones covered so far) that assume a known model. In contrast, model-free RL uses the environment directly to compute monte-carlo estimates of the expectations in the Bellman equation. To avoid delving into time-series machine learning and because it is a bit simpler, we'll cover model-free.\\
+There are two distinct approaches to the RL problem: ``model-based'' and ``model-free.'' In model-based RL, the environment is queried to collect data for forming an approximation of the underlying dynamic and reward distributions. Then, the approximate model is used as if it were exact and the MDP is solved with a technique like the ones covered so far. In contrast, model-free RL uses the environment directly to compute monte-carlo estimates of the expectations in the Bellman equation. We'll cover model-free to avoid a deep discussion of modeling.\\
 
-If we sample a bunch of transitions
+Recall the Bellman equation in terms of the transition probability distribution,
+\begin{align*}
+V^*(s_t) &= \mathcal{B}V^*(s_t)\\
+&= \max_{a_t} E\big{(}r_{t+1} + \gamma V^*(s_{t+1}) | s_t, a_t\big{)}\\
+&= \max_{a_t} \int_{\mathbb{S}}\int_{\mathbb{R}}p(s_{t+1},r_{t+1}|s_t,a_t)\big{(}r_{t+1} + \gamma V^*(s_{t+1})\big{)}\,dr_{t+1}ds_{t+1}
+\end{align*}
 
-\vspace{5ex}\hrule\vspace{2ex}
+Let $W(s_t, a_t)$ be a set of sample transitions $(s_{t+1}, r_{t+1})$ obtained from the environment all starting from state $s_t$ and using action $a_t$. A monte-carlo estimate of the Bellman operator is then,
+\begin{equation*}
+\mathcal{B}V^*(s_t) \approx \max_{a_t} \frac{1}{|W(s_t,a_t)|} \sum_{W(s_t,a_t)} \big{(}r_{t+1} + \gamma V^*(s_{t+1})\big{)}
+\end{equation*}
 
-\textbf{Explain monte-carlo, k-step value functions, policy gradient}\\
+To build $W$ we would need to iterate over every possible $(s_t, a_t)$ pair and query a sufficient number of transition samples. This is a lot of work, and a lot of data. How many samples is sufficient anyway? In the end, the optimal policy may not even have us go near certain regions of the state space, so maybe those areas don't need to be estimated as well as other more important areas.\\
 
-\textbf{Allude further topics: POMDP / HMM, game theory / multiagent}
+Furthermore, sometimes our environment is not nice enough to let us query for any starting state at will. For example, a compiled video-game wont just let us set the game state. It instead forces us to play from the beginning every trial, so the samples we get are just pieces of trajectories that occurred based on the actions our policy selected. But this is circular, since our policy needs the samples already for it to be computed as the $\argmax$ of the estimated expectation.\\
+
+To resolve this, we'll rewrite the Bellman equation into a form that allows for the selection of $a_t$ without evaluating an expectation. Define the optimal ``action-value function'' $Q^*:\mathbb{S}\times\mathbb{A}\times\mathbb{T} \to \mathbb{R}$ as the expected total reward for starting at state $s_t$, using action $a_t$, and from then on acting according to the optimal policy,
+\begin{align*}
+Q^*(s_t, a_t) &\coloneqq E_{\pi^*}(G_t | s_t, a_t)\\
+&= E\big{(}r_{t+1} + \gamma V^*(s_{t+1}) | s_t, a_t\big{)}
+\end{align*}
+
+Then we can compute the optimal policy as,
+\begin{equation*}
+\bar{\pi}^*(s_t) = \argmax_{a_t} Q^*(s_t, a_t)
+\end{equation*}
+
+All we have done of course is hide the expectation, but from an algorithmic perspective this makes a conceptual difference. To choose actions, instead of maximizing the expectation of an estimate of $V^*$, we can just maximize an estimate of $Q^*$. Rewriting the Bellman equation in terms of $Q^*$,
+\begin{gather*}
+V^*(s_t) = \max_{a_t} Q^*(s_t, a_t)\\
+\implies\ \ \ Q^*(s_t, a_t) = E\big{(}r_{t+1} + \gamma \max_{a_{t+1}} Q^*(s_{t+1}, a_{t+1}) | s_t, a_t\big{)}
+\end{gather*}
+
+So by maximizing our current estimate of $Q^*$ we can select actions to interact with the environment, and each transition sample we get from an interaction can be used to monte-carlo estimate a fixed-point-iteration to refine our $Q^*$ estimate. This bootstrap method is known as ``Q-learning.''
+\begin{align*}
+&\text{Guess}\ \ \hat{Q}^*_0\\
+&\text{For each ``epoch'' :}\\
+&\text{Sample}\ \ s_0\ \dist\ p(s_0)\\
+&\text{For each $t \in \mathbb{T}$ :}\\
+&\text{Select}\ \ u_t = \argmax_{a_t} \hat{Q}^*_i(s_t, a_t)\\
+&\text{Sample}\ \ s_{t+1}, r_{t+1}\ \dist\ p{(}s_{t+1}, r_{t+1} | s_t, a_t=u_t{)}\\
+&\text{Recurse}\ \ \hat{Q}^*_{i+1}{(}s_t, u_t{)} = r_{t+1} + \gamma \max_{a_{t+1}} \hat{Q}^*_i{(}s_{t+1}, a_{t+1}{)}
+\end{align*}
+
+And this can of course be combined with function approximation as needed. To help promote exploration / avoid local optima, sometimes an ``$\epsilon$-greedy'' policy is used, where a random action is selected for $u_t$ with probability $\epsilon$ and the approximately optimal action (as shown above) is selected with probability $1-\epsilon$. The $Q^*$ recursion's maximization means it will still learn the optimal $Q$ regardless of what policy is actually used to interact with the environment. Thus Q-learning is deemed an ``off-policy'' method. A slight variant called ``SARSA'' is an ``on-policy'' method where the recursion simply uses $\hat{Q}^*_i{(}s_{t+1}, u_{t+1}{)}$ for the rightmost term. Lastly, to help reduce the variance of these single-sample monte-carlo estimates and assist convergence, the sampled transitions are often recorded in a database called ``experience,'' randomly ordered, and then reused for the $\hat{Q}$ update, a technique called ``experience replay.''\\
+
+The Bellman equation can be understood as using the Markov property to ``roll'' the MDP objective $E_{\pi^*}(G_t | s_t)$ into a recursion over a single transition. The switch to $Q^*$ can be understood as ``unrolling'' just the first step, so $Q$ might be called a ``1-step value function'' and $V$ a ``0-step value function.'' If the MDP is unrolled out to $n$ steps, then we arrive back at the original optimization over trajectories rather than transitions, i.e. no use of the dynamic programming principle.\\
+
+Some approaches tackle the MDP this way, forming a monte-carlo approximation of the gradient of the entire $E_{\pi^*}(G_t | s_t)$ ``roll-out'' and using it to improve a parameterized policy distribution. These ``direct policy gradient'' methods are way less sample efficient than dynamic programming, but do not require global maximizations over $\mathbb{A}$. Policy gradient methods have become popular because even local optima can make for very effective policies in practice.\\
+
+The dynamic programming methods can even be combined with policy gradient methods, in what are called ``actor-critic'' methods. The policy function approximator is the ``actor'' while the value function approximator is the ``critic.'' The purpose is to reduce the variance in the policy gradient estimates by honing a predictor of expected optimal value that can be used as a ``baseline.''\\
+
+To finish, lets allude to a few more places MDP theory can take us. So far, we have assumed that the current state was always available to choose an action based on. But what if the MDP had an observation model $p(z_t|s_t,a_t)$ and our policy was restricted to being a function of only the observations? This is called a ``partially observed MDP'' (POMDP) or ``hidden Markov model'' (HMM). It elicits the idea of ``state estimation'' design.\\
+
+Furthermore, our MDP seems to model a universe where there is only one agent choosing actions. Many situations have multiple agents competing with each other. Entering the realm of ``game theory,'' we can study ``minimax''-type problems and game theoretic versions of dynamic programming theory that handle how an agent should choose its actions knowing that the environment contains an adversary agent with its own objective in mind.\\
+
+Fascinating indeed! Check it out!\\
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
