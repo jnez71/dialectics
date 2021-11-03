@@ -9,6 +9,8 @@ Links to compiled documents:
 
 - [Markov Decision Processes Summary (PDF)](https://drive.google.com/open?id=1wDVDhhO1mXzu3FzD1IyftypRdU6i3xQL)
 
+- [Differential Dynamic Programming Derivation (PDF)](https://drive.google.com/file/d/12F3WKudk21sKxUwR3s9rz0PCdRZD-Vow/view)
+
 Feel free to make an Issue to ask questions or suggest edits, etc...
 
 Enjoy!

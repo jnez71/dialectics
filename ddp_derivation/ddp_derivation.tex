@@ -1,0 +1,135 @@
+% DDP: Derivation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% SETUP
+
+\documentclass{article}
+
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{float}
+\geometry{top=0.75in, bottom=0.75in}
+\hyphenpenalty = 10000
+\setlength\parindent{0pt}
+\setlength{\jot}{10pt}
+
+\usepackage{mathtools}
+\usepackage{mathrsfs}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{cancel}
+\usepackage{xfrac}
+\usepackage{bm}
+\DeclareMathOperator*{\tr}{\intercal}
+\DeclareMathOperator*{\zero}{\underline{0}}
+\DeclareMathOperator*{\eye}{\underline{1}}
+\DeclareMathOperator*{\E}{E}
+\DeclareMathOperator*{\cov}{cov}
+\DeclareMathOperator*{\dist}{\sim}
+\DeclareMathOperator*{\argmin}{argmin}
+\DeclareMathOperator*{\argmax}{argmax}
+\makeatletter
+\def\underbar#1{\underline{\sbox\tw@{$#1$}\dp\tw@\z@\box\tw@}}
+\makeatother
+
+\usepackage[usenames, dvipsnames]{color}
+\definecolor{darkblue}{rgb}{0, 0, 0.75}
+\definecolor{darkgreen}{rgb}{0, 0.5, 0}
+\definecolor{orange}{RGB}{180, 60, 0}
+\definecolor{purple}{RGB}{200, 0, 200}
+\def\green#1{\textcolor{darkgreen}{#1}}
+\def\red#1{\textcolor{red}{#1}}
+\def\blue#1{\textcolor{darkblue}{#1}}
+\def\orange#1{\textcolor{orange}{#1}}
+\def\purple#1{\textcolor{purple}{#1}}
+\def\black#1{\textcolor{black}{#1}}
+
+\begin{document}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% TITLE
+
+\title{\vspace{-5ex}\textbf{Differential Dynamic Programming:} Derivation}
+\author{\vspace{-10ex}}
+\date{\vspace{-10ex}}
+\maketitle
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% BODY
+
+\begin{center}
+(Generalizable to continuous time, manifold state / decision spaces, and competing agents).
+\end{center}
+
+\begin{equation*}
+t \in \mathbb{N}\ \ \ \ ,\ \ \ \ x_t \in \mathbb{R}^n\ \ \ \ ,\ \ \ \ u_t \in \mathbb{R}^m
+\end{equation*}
+
+\begin{equation*}
+f_t : \mathbb{R}^n \times \mathbb{R}^m \to \mathbb{R}^n\ \ \ \ ,\ \ \ \ \ell_t : \mathbb{R}^n \times \mathbb{R}^m \to \mathbb{R}
+\end{equation*}
+
+\begin{equation*}
+x_{t+1} := f_t(x_t,u_t)\ \ \forall t \tag{Markov Decision Process}
+\end{equation*}
+
+\begin{align*}
+V_t(x_t) &:= \min_{\{u_t,\ldots,u_T\}} \sum_{\tau = t}^T \ell_\tau(x_\tau,u_\tau) \tag{Trajectory Optimization}\\
+&= \min_{\{u_t,\ldots,u_T\}} \Big{[}\ell_t(x_t,u_t) + \sum_{\tau = t+1}^T \ell_\tau(x_\tau,u_\tau)\Big{]}\\
+&= \min_{u_t} \Big{[}\ell_t(x_t,u_t) + \min_{\{u_{t+1},\ldots,u_T\}} \sum_{\tau = t+1}^T \ell_\tau(x_\tau,u_\tau)\Big{]}\\
+&= \min_{u_t} \Big{[}\ell_t(x_t,u_t) + V_{t+1}(x_{t+1})\Big{]}
+\end{align*}
+
+\begin{gather*}
+\therefore\ \ V_t(x_t) = \min_{u_t} \Big{[}\ell_t(x_t,u_t) + V_{t+1}\big{(}f_t(x_t,u_t)\big{)}\Big{]} \tag{Dynamic Programming}\\
+V_{T+1} \equiv 0
+\end{gather*}
+
+It is assumed that, given $V$, the single-decision minimization in the Dynamic Programming Equation is easy to perform (exponentially easier than the multi-decision Trajectory Optimization). Unfortunately, the new difficulty is in calculating $V$. It's often too difficult to solve for $V$ exactly over the entire spacetime. Instead, we propose an approximate form for $V$ (e.g., a neural network) and ensure that it always satisfies the Dynamic Programming Equation at some finite collection of states.\\
+
+Here we derive one such approximate dynamic programming technique which expresses $V$ as a quadratic that satisfies the Dynamic Programming Equation at states infinitesimally close to some reference states, i.e. a second-order Taylor-series approximation. This \textit{local} approximation of $V$ can be used for locally optimal decision-making that is still leagues better than the naive greedy policy $\min_{u_t}\ell(x_t,u_t)$. However, the local approximation has to be recomputed as the agent transitions to new regions of the state space, and thus this approach blends the likes of online trajectory optimization \textit{and} dynamic programming. It is called ``differential dynamic programming'' and is one of the most popular methods for model-predictive control.
+
+\begin{gather*}
+\bar{x}_{t+1} = f_t(\bar{x}_t,\bar{u}_t)\ \ \forall t \leq T \tag{Forward Simulation}
+\end{gather*}
+
+\begin{equation*}
+V_t(x_t) = \min_{u_t} \Big{[}\underbrace{\ell_t(x_t,u_t) + V_{t+1}\big{(}f_t(x_t,u_t)\big{)}}_{=:\ Q_t(x_t,u_t)}\Big{]} \tag{Hamiltonian}
+\end{equation*}
+
+\clearpage
+
+\begin{align*}
+Q_t(x_t,u_t)\ \approx\ \hat{Q}_t(x_t,u_t)\ :=\ \ &Q_t(\bar{x}_t,\bar{u}_t) \tag{Taylor Approximation}\\
+&+\ \begin{bmatrix}\frac{\partial Q_t}{\partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} & \frac{\partial Q_t}{\partial u}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}}\end{bmatrix} \begin{bmatrix}x_t - \bar{x}_t \\ u_t - \bar{u}_t\end{bmatrix}\\
+&+\ \frac{1}{2}\begin{bmatrix}x_t - \bar{x}_t \\ u_t - \bar{u}_t\end{bmatrix}^{\tr} \begin{bmatrix}\frac{\partial^2 Q_t}{\partial x \partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} & \frac{\partial^2 Q_t}{\partial x \partial u}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} \\[8pt] \frac{\partial^2 Q_t}{\partial u \partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} & \frac{\partial^2 Q_t}{\partial u \partial u}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}}\end{bmatrix} \begin{bmatrix}x_t - \bar{x}_t \\ u_t - \bar{u}_t\end{bmatrix}
+\end{align*}
+
+where, for example,
+\begin{align*}
+\frac{\partial Q_t}{\partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} = \frac{\partial \ell_t}{\partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} + \frac{\partial V_{t+1}}{\partial x}\big{|}_{\tiny{\bar{x}_{t+1}}} \cdot \frac{\partial f_t}{\partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}}
+\end{align*}
+
+If you express each partial-derivative of $Q_t$ as a finite-difference then it becomes apparent how $\hat{Q}_t$ is an approximation fitted to $Q_t$ at (two) state-action points differentially adjacent to the reference point $\{\bar{x}_t,\bar{u}_t\}$. Of course, the continuous perspective is that $\hat{Q}_t$ is the simplest polynomial that matches the value, Jacobian (slope), and Hessian (curvature) of $Q_t$ at $\{\bar{x}_t,\bar{u}_t\}$. We say that $Q$ has been ``quadraticized'' about the reference trajectory $\{\bar{x},\bar{u}\}$. Quadratics have closed-form minima! (We'll return to the issue of positive-definite curvature).
+\begin{align*}
+\hat{u}^*_t(x_t)\ &:=\ \argmin_{u_t} \hat{Q}_t(x_t,u_t)\\
+&=\ \bar{u}_t - \frac{\partial^2 Q_t}{\partial u \partial u}\overset{^{-1}}{\big{|}}_{\tiny{\bar{x}_t,\bar{u}_t}}\bigg{(}\frac{\partial Q_t}{\partial u}\overset{^{\tr}}{\big{|}}_{\tiny{\bar{x}_t,\bar{u}_t}} + \frac{\partial^2 Q_t}{\partial u \partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} \cdot (x_t - \bar{x}_t)\bigg{)}\\
+&=:\ \bar{u}_t + k_t + K_t(x_t - \bar{x}_t)\tag{Policy}
+\end{align*}
+
+The resulting (approximately optimal) policy is affine, so substituting it into the quadratic $\hat{Q}_t$ yields another quadratic for $\hat{V}_t$, which can also be expressed as a second-order Taylor-series.
+\begin{align*}
+\hat{V}_t(x_t) &= \min_{u_t} \hat{Q}_t(x_t,u_t)\\
+&= \hat{Q}_t\big{(}x_t,\hat{u}^*_t(x_t)\big{)}\\
+&= V_t(\bar{x}_t)\ +\ \frac{dV_t}{dx}\big{|}_{\bar{x}_t}(x_t - \bar{x}_t)\ +\ \frac{1}{2}(x_t - \bar{x}_t)^{\tr}\frac{d^2V_t}{dxdx}\big{|}_{\bar{x}_t}(x_t - \bar{x}_t)
+\end{align*}
+
+Expanding $\hat{Q}_t\big{(}x_t,\hat{u}^*_t(x_t)\big{)}$ and then collecting terms into powers of $x_t - \bar{x}_t$ reveals a recursion for how the Jacobian and Hessian of $V$ backpropagate through time.
+\begin{align*}
+\frac{dV_t}{dx}\big{|}_{\bar{x}_t} &= \frac{\partial Q_t}{\partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} + k_t^{\tr} \frac{\partial^2 Q_t}{\partial u \partial u}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} K_t\\
+\frac{d^2V_t}{dxdx}\big{|}_{\bar{x}_t} &= \frac{\partial^2 Q_t}{\partial x \partial x}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} + K_t^{\tr} \frac{\partial^2 Q_t}{\partial u \partial u}\big{|}_{\tiny{\bar{x}_t,\bar{u}_t}} K_t
+\end{align*}
+
+What's happened here is that, since our approximation for $V$ is local to the reference trajectory $\{\bar{x}, \bar{u}\}$, we only need to solve the Dynamic Programming Equation along the reference trajectory to completely fit our approximation. The next step is to take the resulting locally optimal policy and use it as $\bar{u}$ to forward-simulate a new \textit{improved} reference trajectory. This is repeated until convergence and the final policy is actuated.\\
+
+The policy is only guaranteed to improve on each rollout if the curvature of $\hat{Q}$ is positive-definite in $u$. You'll know if it's not, because $\frac{\partial^2 Q_t}{\partial u \partial u}$ will not be invertible. To prevent this, the inverse is regularized by adding a small positive quantity to the eigenvalues (Levenberg-Marquardt heuristic).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CLOSE
+
+\end{document}
